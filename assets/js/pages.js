@@ -12,6 +12,21 @@
   var one = GP.one;
   if (!on) return;
 
+  // Блоки ниже получают обработчики один раз, при загрузке. Если тихое обновление (live.js)
+  // заменит такой блок целиком, страница перезагрузится обычным способом.
+  if (GP.live) {
+    GP.live.guard(
+      "[data-tiers], [data-time-calc], [data-review-form], #assign, [data-fine-form], [data-editor], [data-access-form], " +
+        "[data-access-scope], [data-new-account], [data-exam-editor], [data-exam-take], [data-checklist], [data-wiki-nav], " +
+        "[data-category-select], [data-assign-emp], [data-filter-input]"
+    );
+  }
+  // Редакторы статей и экзаменов собирают форму на лету — они сохраняются обычным переходом.
+  all("[data-editor], [data-exam-editor]").forEach(function (editor) {
+    var form = editor.closest("form") || one("form", editor);
+    if (form) form.setAttribute("data-live", "off");
+  });
+
   function readJson(sel, root) {
     var node = one(sel, root);
     if (!node) return {};

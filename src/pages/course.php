@@ -490,9 +490,10 @@ trait PagesCourse
     {
         $html = '<div class="lesson-shell">';
         $html .= '<div class="lesson-shell__nav">' . self::courseNavPanel($user, $flow, $stats, $chapterId) . '</div>';
-        $html .= '<div class="lesson-shell__main">' . $main . '</div>';
+        // data-live-nav: шаги этой главы открываются без перезагрузки — меняется только карточка урока (live.js, course.js).
+        $html .= '<div class="lesson-shell__main" data-live-nav>' . $main . '</div>';
         if ($aside !== '') {
-            $html .= '<div class="lesson-shell__coach">' . $aside . '</div>';
+            $html .= '<div class="lesson-shell__coach" data-live-nav>' . $aside . '</div>';
         }
         return $html . '</div>';
     }

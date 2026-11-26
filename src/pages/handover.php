@@ -522,7 +522,8 @@ trait PagesHandover
         $data = self::shiftReconcileDay((int) $branch['id'], $day, $now);
         $issues = count(array_filter($data['rows'], static fn ($r) => !empty($r['issues'])));
 
-        $nav = '<div class="flex flex-wrap items-center gap-2">';
+        // data-live-nav: соседний день и филиал открываются без перезагрузки — меняются только карточки (live.js).
+        $nav = '<div class="flex flex-wrap items-center gap-2" data-live-nav>';
         $nav .= '<a class="' . btn_class('outline', 'icon-sm') . '" aria-label="Предыдущий день" href="' . h(url_to('/shift/reconcile', ['branch' => $branch['slug'], 'd' => add_days($day, -1)])) . '">' . icon('chevronleft') . '</a>';
         $nav .= '<span class="text-sm font-semibold first-letter:uppercase">' . h(format_day_month($day)) . '</span>';
         if ($day < $today) {
@@ -536,7 +537,7 @@ trait PagesHandover
         $nav .= '</div>';
 
         $html = page_head('Контроль смен', 'Три источника в одном месте — найти, где что-то не сошлось.', $nav, $branch['name']);
-        $html .= self::branchSwitch('/shift/reconcile', $branch, $visible, ['d' => $day !== $today ? $day : null]);
+        $html .= '<div class="flex" data-live-nav>' . self::branchSwitch('/shift/reconcile', $branch, $visible, ['d' => $day !== $today ? $day : null]) . '</div>';
         $html .= '<div class="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm leading-relaxed text-muted-foreground">';
         $html .= '<p class="font-medium text-foreground">Зачем эта вкладка</p>';
         $html .= '<ol class="mt-2 list-decimal space-y-1 pl-5">';
@@ -565,11 +566,15 @@ trait PagesHandover
             $html .= '</ul>';
         }
         $html .= '<p class="mt-6 text-xs leading-relaxed text-muted-foreground">Цифры кассы Langame подтянутся после синхронизации. Это не «сколько заработал клуб» для сотрудников — раздел только для контроля смен.</p>';
+        // Раньше страница перезагружалась после каждой фоновой сверки и тут же ставила новую — бесконечный цикл.
+        // Теперь сверка при открытии и редкий опрос за сегодня подставляют свежие карточки без перезагрузки (app.js + live.js).
         self::layout($user, $html, [
             'title' => 'Контроль смен',
             'width' => 'wide',
             'langameReload' => true,
             'langameForce' => true,
+            'langameBranches' => [(int) $branch['id']],
+            'langamePollMs' => $day === $today ? 120000 : 0,
         ]);
     }
 

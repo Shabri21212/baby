@@ -1454,3 +1454,28 @@ summary.editor-panel__head:focus-visible {
 .eq-result .eq-stats { width: 100%; }
 .eq-rule { display: flex; flex-direction: column; gap: 0.25rem; padding-left: 1rem; border-left: 2px solid var(--border); }
 .eq-rule span { font-size: 0.875rem; color: var(--muted-foreground); }
+
+/* ---------- смена шага без перезагрузки: движется только содержимое карточки урока ---------- */
+.lesson-card.is-step-enter > * {
+  animation: lesson-step-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.lesson-card.is-step-enter > :nth-child(2) {
+  animation-delay: 40ms;
+}
+.lesson-card.is-step-enter > :nth-child(n + 3) {
+  animation-delay: 80ms;
+}
+.lesson-card.is-step-back > * {
+  --step-shift: -16px;
+}
+@keyframes lesson-step-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--step-shift, 16px));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lesson-card.is-step-enter > * {
+    animation: none;
+  }
+}

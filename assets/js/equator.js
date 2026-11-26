@@ -10,6 +10,8 @@
 
   var GP = window.GP || {};
   var root = document.querySelector("[data-equator]");
+  // Задания рисует этот скрипт при загрузке — карточку «Экватора» тихое обновление не подменяет.
+  if (GP.live) GP.live.guard("[data-equator]");
   if (!root || root.getAttribute("data-passed") === "1") return;
 
   var dataEl = root.querySelector("[data-eq-data]");

@@ -905,7 +905,9 @@ final class Portal
                 $out .= '<link rel="stylesheet" href="' . h(asset($style)) . '">';
             }
         }
-        $out .= '<script>' . THEME_BOOT . '(function(){var m=document.querySelector(\'meta[name="theme-color"]\');if(m&&document.documentElement.classList.contains("dark"))m.content="#111113"})();</script>';
+        $out .= '<script>' . THEME_BOOT . '(function(){var m=document.querySelector(\'meta[name="theme-color"]\');if(m&&document.documentElement.classList.contains("dark"))m.content="#111113"})();';
+        // Анимация появления страницы — только после перехода из левого меню: флаг оставляет клик по пункту (motion.js).
+        $out .= '(function(){try{if(sessionStorage.getItem("gp-enter")){sessionStorage.removeItem("gp-enter");document.documentElement.classList.add("gp-enter")}}catch(e){}})();</script>';
         $newYear = $user !== null && self::newYearOn();
         $out .= '</head><body class="min-h-dvh font-sans text-foreground antialiased' . ($user ? ' app-canvas' : '') . ($newYear ? ' is-newyear' : '') . '">';
         $out .= '<a href="#main" class="skip-link">Перейти к содержимому</a>';
@@ -949,7 +951,8 @@ final class Portal
             }
         }
         $out .= '<script>window.GP=' . json_encode($gp, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) . ';</script>';
-        foreach (array_merge(['app', 'pages'], $user ? ['motion'] : [], (array) ($opts['scripts'] ?? []), $newYear ? ['newyear'] : []) as $script) {
+        // live.js идёт первым: он запоминает разметку сервера до того, как её тронут остальные скрипты.
+        foreach (array_merge($user ? ['live'] : [], ['app', 'pages'], $user ? ['motion'] : [], (array) ($opts['scripts'] ?? []), $newYear ? ['newyear'] : []) as $script) {
             $out .= '<script src="' . h(asset('js/' . $script . '.js')) . '" defer></script>';
         }
         $out .= '</body></html>';
@@ -980,9 +983,7 @@ final class Portal
             'default' => 'max-w-6xl',
             'wide' => 'max-w-[88rem]',
         ][$width] ?? 'max-w-6xl';
-        // Компактный режим применяем до первой отрисовки, иначе панель «прыгнет» после загрузки скриптов.
-        $out = '<script>try{if(localStorage.getItem("gp-sb-rail")==="1")document.documentElement.classList.add("sb-rail")}catch(e){}</script>';
-        $out .= '<div class="ambient" aria-hidden="true"></div>';
+        $out = '<div class="ambient" aria-hidden="true"></div>';
         $out .= '<div class="sb-shell min-h-dvh">';
         $out .= '<aside class="sb sb--desk" data-sidebar aria-label="Навигация">' . self::sidebar($user, $counts, $path, false) . '</aside>';
         $out .= '<script>' . self::sidebarBoot() . '</script>';
@@ -992,7 +993,7 @@ final class Portal
         $out .= '<span class="h-4 w-px shrink-0 bg-border" aria-hidden="true"></span>';
         $out .= '<p class="min-w-0 flex-1 truncate text-sm font-semibold">' . h($title) . '</p>';
         $out .= '<button type="button" class="' . btn_class('quiet', 'icon-sm') . '" data-theme-toggle aria-label="Сменить тему">' . icon('moon', 'size-4') . '</button>';
-        $out .= '<a href="' . h(url_to('/account')) . '" class="shrink-0 rounded-md" aria-label="Мой профиль">' . self::avatarFor($user, 'size-8 text-[11px]') . '</a>';
+        $out .= '<a href="' . h(url_to('/account')) . '" class="shrink-0 rounded-md" aria-label="Мой профиль">' . self::avatarFor($user, 'size-8 text-[11px]', 'sidebar') . '</a>';
         $out .= '</header>';
         if (self::newYearOn()) {
             $out .= self::newYearGarland();
@@ -1008,7 +1009,7 @@ final class Portal
             $out .= '<li><a href="' . h(url_to($tab['href'])) . '" class="dock-item"' . ($on ? ' aria-current="page"' : '') . '>';
             $out .= '<span class="relative">' . icon($tab['icon'], 'size-5');
             if ($badge > 0) {
-                $out .= '<span class="absolute -top-1.5 -right-2.5 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 font-bold text-primary-foreground tabular-nums">' . ($badge > 99 ? '99+' : $badge) . '</span>';
+                $out .= '<span class="dock-badge absolute -top-1.5 -right-2.5 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 font-bold text-primary-foreground tabular-nums">' . ($badge > 99 ? '99+' : $badge) . '</span>';
             }
             $out .= '</span>' . h($tab['label']) . '</a></li>';
         }
@@ -1024,10 +1025,12 @@ final class Portal
     /**
      * Восстанавливает до первой отрисовки: раскрытые группы, прокрутку меню и «перетекание»
      * подложки активного пункта с места, где она была на предыдущей странице.
+     * Если на страницу пришли кликом по меню, курсор всё ещё над панелью — она сразу рисуется раскрытой.
      */
     private static function sidebarBoot(): string
     {
         return '(function(){try{var a=document.currentScript.previousElementSibling;'
+            . 'if(sessionStorage.getItem("gp-sb-open")){sessionStorage.removeItem("gp-sb-open");a.classList.add("is-open")}'
             . 'var s=JSON.parse(localStorage.getItem("gp-nav-groups")||"{}");'
             . 'a.querySelectorAll("[data-sb-group]:not([data-pinned]):not([data-has-active])").forEach(function(g){var k=g.getAttribute("data-sb-group");'
             . 'if(Object.prototype.hasOwnProperty.call(s,k)){var o=s[k]?"true":"false";g.setAttribute("data-open",o);var b=g.querySelector(".sb-group-head");if(b)b.setAttribute("aria-expanded",o)}});'
@@ -1051,9 +1054,6 @@ final class Portal
             $html .= '<button type="button" class="sb-icon-btn ml-auto" data-close-nav aria-label="Закрыть меню">' . icon('x', 'size-5') . '</button>';
         }
         $html .= '</div>';
-        if (!$drawer) {
-            $html .= '<button type="button" class="sb-rail-toggle" data-sb-rail aria-pressed="false" aria-label="Свернуть панель" data-tip="Свернуть панель" data-tip-always>' . icon('panel-left', 'size-3.5') . '</button>';
-        }
         $html .= '<nav class="sb-nav scrollbar-thin" aria-label="Разделы портала" data-pill-group>';
         $activeItem = find_nav_item($path);
         foreach (NAV_GROUPS as $group) {

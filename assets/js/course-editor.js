@@ -26,6 +26,9 @@
   var titleInput = form ? form.querySelector('input[name="title"]') : null;
   var stepId = root.getAttribute("data-step") || "";
   if (!area || !input || !form) return;
+  // Редактор сам следит за несохранёнными правками и текущим шагом —
+  // формы этой страницы отправляются обычным переходом, без тихого обновления.
+  (document.getElementById("main") || form).setAttribute("data-live", "off");
 
   var source = false;
   var dirty = false;

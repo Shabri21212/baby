@@ -389,6 +389,22 @@
     });
   }
 
+  /* ---------- тихое сохранение: сервер обновил только изменённые дни ---------- */
+
+  // Ячейки дней, сводка и панель «кисти» получают обработчики при загрузке — целиком их заменять нельзя.
+  if (GP.live) GP.live.guard("[data-month-grid], [data-summary], [data-paint-panel], [data-day-dialog]");
+
+  on(document, "gp:patched", function () {
+    // Сохранённые смены пришли от сервера — убираем черновые плашки «кисти» и зачёркивания.
+    Object.keys(touched).forEach(function (key) {
+      renderCell(touched[key]);
+    });
+    if (!Object.keys(pending).length) touched = {};
+    syncPaint();
+    paintRange();
+    applyFilter();
+  });
+
   /* ---------- ячейки дней: нажатие открывает день, протяжка мышью выделяет период ---------- */
 
   function activate(cell) {
