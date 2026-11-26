@@ -426,18 +426,22 @@ function stat_tile(string $label, string $value, string $hint = '', string $href
 }
 
 /**
- * Аватар: фото (если есть) или монограмма. $tone: ink — на страницах, sidebar — в тёмной боковой панели.
+ * Аватар: фото (если есть) или монограмма. $tone: ink — графитовая плашка со срезом на страницах,
+ * sidebar — бейдж профиля в боковой панели (.sb-avatar: светлый в светлой теме, дымчатый в тёмной).
  * $photoUrl — абсолютный или относительный URL картинки.
  */
 function avatar(string $name, string $class = 'size-9 text-xs', string $tone = 'ink', ?string $photoUrl = null): string
 {
-    $toneClass = $tone === 'sidebar' ? 'bg-sidebar-accent-foreground text-sidebar' : 'bg-avatar text-avatar-foreground';
-    $base = 'avatar cut inline-flex shrink-0 items-center justify-center font-display leading-none font-semibold select-none overflow-hidden ' . $toneClass . ' ' . h($class);
+    $sidebar = $tone === 'sidebar';
+    $toneClass = $sidebar ? 'sb-avatar' : 'cut bg-avatar text-avatar-foreground';
+    // Срез угла делается через clip-path и обрезал бы тень бейджа — у него скруглённые углы.
+    $cut = $sidebar ? '' : ' style="--cut:20%"';
+    $base = 'avatar inline-flex shrink-0 items-center justify-center font-display leading-none font-semibold select-none overflow-hidden ' . $toneClass . ' ' . h($class);
     if ($photoUrl !== null && $photoUrl !== '') {
-        return '<span class="' . $base . '" style="--cut:20%" title="' . h($name) . '"><img src="' . h($photoUrl) . '" alt="" class="size-full object-cover" loading="lazy" decoding="async"></span>';
+        return '<span class="' . $base . '"' . $cut . ' title="' . h($name) . '"><img src="' . h($photoUrl) . '" alt="" class="size-full object-cover" loading="lazy" decoding="async"></span>';
     }
     $glyph = trim($name) === '' ? icon('user', 'size-1/2') : h(initials($name));
-    return '<span class="' . $base . '" style="--cut:20%" aria-hidden="true" title="' . h($name) . '">' . $glyph . '</span>';
+    return '<span class="' . $base . '"' . $cut . ' aria-hidden="true" title="' . h($name) . '">' . $glyph . '</span>';
 }
 
 /** URL фото пользователя портала (или null). $image — версия/метка из user.image. */

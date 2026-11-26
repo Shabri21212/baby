@@ -90,58 +90,65 @@ trait PagesShifts
         $wd = WEEKDAY_LONG[weekday_from_date_key($today)];
         $dateLabel = mb_strtoupper(mb_substr($wd, 0, 1)) . mb_substr($wd, 1) . ', ' . format_day_month($today);
 
-        $html = '<header class="flex flex-col gap-2">' . eyebrow($dateLabel);
-        $html .= '<h1 class="font-display text-2xl leading-tight font-semibold tracking-tight text-balance sm:text-[2rem]">' . h(self::greeting($now)) . (($user['role'] ?? '') === 'owner' ? '' : ', ' . h(first_name($name))) . '</h1>';
+        /*
+         * Первый экран — работа на смене: компактная строка статуса, вкладки с быстрыми действиями
+         * и сразу под ними рабочие блоки в две колонки («На смену» и задания — слева, «Сейчас в клубах» — справа).
+         * Посадка по залам администратору на смене не первоочередна — она сворачиваемой панелью в самом низу.
+         */
+        $hero = $eid ? ($current ?? $next) : null;
+        $heroPhase = $hero && $handover && (int) $handover['id'] === (int) $hero['id'] ? $handoverPhase : null;
+
+        $html = '<header class="flex flex-wrap items-end justify-between gap-x-6 gap-y-2"><div class="flex min-w-0 flex-col gap-1.5">' . eyebrow($dateLabel);
+        $html .= '<h1 class="font-display text-2xl leading-tight font-semibold tracking-tight text-balance sm:text-[1.75rem]">' . h(self::greeting($now)) . (($user['role'] ?? '') === 'owner' ? '' : ', ' . h(first_name($name))) . '</h1></div>';
         $html .= '<p class="flex items-center gap-2 text-sm text-muted-foreground">' . icon('clock', 'size-4') . '<span>Сейчас <time data-clock class="font-semibold text-foreground tabular-nums">' . $now->format('H:i') . '</time></span>';
         $html .= '<span class="ml-2 text-xs text-muted-foreground" data-langame-status hidden>Обновляем данные клуба…</span></p></header>';
-        $load = self::clubLoadPanel($user);
-        $needLiveReload = $load['reload'];
-        $html .= $load['html'];
+        $html .= self::shiftStatusBar($user, $hero, $live, $today, $heroPhase);
 
-        /* Главная — вкладками: всё важное видно на первом экране, без длинной прокрутки. */
-        $shiftMain = '';
+        $shiftMain = self::attentionCard($user, $attention);
+        $shiftSide = self::clubsNowCard($live, $soon, $user);
         if ($eid) {
-            $hero = $current ?? $next;
-            $heroPhase = $hero && $handover && (int) $handover['id'] === (int) $hero['id'] ? $handoverPhase : null;
-            $shiftMain .= self::shiftTicket($hero, $live, $today, $heroPhase);
             $taskDate = $current['date'] ?? (($next && $next['date'] === $today) ? $today : null);
             if ($taskDate !== null) {
+                // Шаблоны «Задания дня» сами по себе сотрудникам не приходят: они видят только то,
+                // что руководитель реально назначил на день (в т.ч. из шаблона) — см. myTasksCard().
                 $shiftMain .= self::myTasksCard($user, $taskDate, $today);
             }
-            // Шаблоны «Задания дня» сами по себе сотрудникам не приходят: они видят только то,
-            // что руководитель реально назначил на день (в т.ч. из шаблона) — см. myTasksCard().
-        } else {
-            $shiftMain .= self::clubsNowHero($live, $soon, $user);
-        }
-        $shiftSide = self::attentionCard($user, $attention);
-        if ($eid) {
             $rest = array_values(array_filter($upcoming, static fn ($s) => !$hero || $s['id'] !== $hero['id']));
             $shiftSide .= self::upcomingCard(array_slice($rest, 0, 6));
         }
 
         $panels = [
-            'shift' => ['Смена', 'calendar', $shiftMain, $shiftSide],
+            'shift' => ['Смена', 'calendar', $shiftMain, $shiftSide, 'lg:grid-cols-2'],
             'money' => ['Деньги', 'wallet', self::personalPayCard($user) . self::todayTopupsCard($user), self::myRecordsCard($user)],
             'top' => ['Рейтинги', 'trophy', self::adminsTopCard($user), self::clubsBarTopCard($user)],
-            'club' => ['Клуб', 'users', ($eid ? self::clubsNowCard($live, $soon, $user) : '') . (can($user, 'tasks.assign') && $live ? self::liveTasksOverview($user, $live) : ''), self::latestNewsCard($user)],
+            'club' => ['Клуб', 'users', can($user, 'tasks.assign') && $live ? self::liveTasksOverview($user, $live) : '', self::latestNewsCard($user)],
         ];
         $panels = array_filter($panels, static fn ($p) => trim($p[2] . $p[3]) !== '');
-        $html .= self::homeTabs($panels);
-        self::layout($user, $html, ['title' => 'Мой день', 'langameReload' => $needLiveReload]);
+
+        $quick = $eid ? '<a class="' . btn_class('outline', 'sm') . '" href="' . h(url_to('/shift')) . '">' . icon('clipboard-check', 'size-4') . 'Приём и сдача</a>' : '';
+        $quick .= '<a class="' . btn_class('outline', 'sm') . '" href="' . h(url_to('/schedule')) . '">' . icon('calendar', 'size-4') . 'График</a>';
+        $html .= self::homeTabs($panels, $quick);
+
+        $load = self::clubLoadPanel($user);
+        $html .= $load['html'];
+        // langameReload: когда фон дотянет посадку из Langame, цифры подставятся в панель без перезагрузки (live.js).
+        self::layout($user, $html, ['title' => 'Мой день', 'langameReload' => $load['reload']]);
     }
 
     /**
-     * Вкладки главной. panels: key => [label, icon, main html, side html].
+     * Вкладки главной. panels: key => [label, icon, main html, side html, классы колонок (необязательно)].
      * Переключаются без перезагрузки (data-tabs в app.js), выбранная вкладка запоминается в адресе (#money).
+     * $actions — быстрые действия справа от вкладок.
      */
-    private static function homeTabs(array $panels): string
+    private static function homeTabs(array $panels, string $actions = ''): string
     {
         if ($panels === []) {
             return '';
         }
         $first = array_key_first($panels);
-        $html = '<section class="flex flex-col gap-5" data-tabs>';
-        $html .= '<div class="flex max-w-full gap-1 self-start overflow-x-auto rounded-xl border border-border bg-card p-1 shadow-xs scrollbar-none" role="tablist" aria-label="Разделы главной">';
+        $html = '<section class="home-tabs flex flex-col gap-5" data-tabs>';
+        $html .= '<div class="flex flex-wrap items-center justify-between gap-3">';
+        $html .= '<div class="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1 shadow-xs scrollbar-none" role="tablist" aria-label="Разделы главной">';
         foreach ($panels as $key => [$label, $ic]) {
             $on = $key === $first;
             $html .= '<button type="button" role="tab" id="tab-' . $key . '" aria-controls="panel-' . $key . '" aria-selected="' . ($on ? 'true' : 'false') . '" tabindex="' . ($on ? '0' : '-1') . '" data-tab="' . $key . '"'
@@ -149,9 +156,14 @@ trait PagesShifts
                 . icon($ic, 'size-4') . h($label) . '</button>';
         }
         $html .= '</div>';
-        foreach ($panels as $key => [, , $main, $side]) {
+        if ($actions !== '') {
+            $html .= '<div class="flex flex-wrap items-center gap-2">' . $actions . '</div>';
+        }
+        $html .= '</div>';
+        foreach ($panels as $key => $panel) {
+            [, , $main, $side] = $panel;
             $grid = trim($main) !== '' && trim($side) !== ''
-                ? 'grid items-start gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]'
+                ? 'grid items-start gap-6 ' . ($panel[4] ?? 'lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]')
                 : 'grid items-start gap-6';
             $html .= '<div role="tabpanel" id="panel-' . $key . '" aria-labelledby="tab-' . $key . '" data-tab-panel="' . $key . '" class="' . $grid . '"' . ($key === $first ? '' : ' hidden') . '>';
             foreach ([$main, $side] as $col) {
@@ -191,50 +203,69 @@ trait PagesShifts
         return $best;
     }
 
-    private static function shiftTicket(?array $s, array $live, string $today, ?string $handoverPhase = null): string
+    /**
+     * Компактная строка статуса на главной: что со сменой прямо сейчас и одно главное действие.
+     * У руководителя без своих смен — кто сейчас работает в клубах.
+     */
+    private static function shiftStatusBar(array $user, ?array $s, array $live, string $today, ?string $handoverPhase = null): string
     {
-        $html = '<section class="cut hero-panel relative flex flex-col gap-6 p-5  sm:p-7" style="--cut:26px" aria-labelledby="my-shift-title">';
-        $html .= Course::settings()['newYear']
-            ? newyear_art('club')
-            : '<img src="' . h(asset('img/club/hall-wide-sm.webp')) . '" alt="" class="pointer-events-none absolute inset-y-0 right-0 hidden h-full w-1/2 object-cover opacity-25 [mask-image:linear-gradient(to_left,black,transparent)] sm:block" aria-hidden="true">';
-        $html .= '<div class="relative flex flex-wrap items-center justify-between gap-3"><p class="flex items-center gap-2 text-[11px] font-semibold tracking-[0.18em] text-sidebar-muted uppercase"><span class="cut-mark" aria-hidden="true"></span>Моя смена</p>';
-        if (!$s) {
-            $html .= '</div><div class="relative flex flex-col gap-2"><p id="my-shift-title" class="font-display text-2xl font-semibold">Смен пока нет</p><p class="max-w-md text-sm leading-relaxed text-sidebar-foreground">На ближайшие три недели смены не назначены.</p></div>';
-            $html .= '<a href="' . h(url_to('/schedule')) . '" class="relative inline-flex w-fit items-center gap-1.5 text-sm font-semibold hover:text-brand">Открыть график ' . icon('arrow', 'size-4') . '</a></section>';
-            return $html;
+        $link = 'inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-foreground transition-colors hover:text-brand';
+        $html = '<section class="glass-card flex flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3 sm:px-5" aria-label="Статус смены">';
+
+        if (empty($user['employeeId'])) {
+            $byBranch = [];
+            foreach ($live as $r) {
+                $byBranch[(string) $r['branchName']] = ($byBranch[(string) $r['branchName']] ?? 0) + 1;
+            }
+            $parts = [];
+            foreach ($byBranch as $branchName => $count) {
+                $parts[] = $branchName . ' — ' . $count;
+            }
+            $html .= $live
+                ? '<span class="status-pill is-live"><span class="live-dot" aria-hidden="true"></span>' . h(plural(count($live), 'человек', 'человека', 'человек')) . ' на смене</span>'
+                : '<span class="status-pill">На смене никого</span>';
+            $html .= '<p class="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">' . h($parts ? implode(' · ', $parts) : 'Сейчас по графику нет идущих смен.') . '</p>';
+            return $html . '<a href="' . h(url_to('/schedule')) . '" class="' . $link . '">График смен ' . icon('arrow', 'size-4') . '</a></section>';
         }
+
+        if (!$s) {
+            $html .= '<span class="status-pill">Смен нет</span>';
+            $html .= '<p class="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground"><span id="my-shift-title" class="font-semibold text-foreground">Смен пока нет.</span> На ближайшие три недели смены не назначены.</p>';
+            return $html . '<a href="' . h(url_to('/schedule')) . '" class="' . $link . '">Открыть график ' . icon('arrow', 'size-4') . '</a></section>';
+        }
+
         $type = (string) $s['shiftType'];
         $st = $s['state'];
         $isLive = $st['state'] === 'live';
-        if ($isLive) {
-            $html .= '<span class="inline-flex items-center gap-2 rounded-[5px] bg-primary px-2 py-0.5 text-xs leading-5 font-semibold text-primary-foreground"><span class="live-dot" aria-hidden="true"></span>Идёт сейчас</span>';
-        } else {
-            $html .= '<span class="rounded-[5px] bg-sidebar-accent px-2 py-0.5 text-xs leading-5 font-semibold">' . ($s['date'] === $today ? 'Сегодня' : 'Следующая') . '</span>';
-        }
-        $html .= '</div>';
         $tone = $type === 'night' ? 'text-night-strong' : 'text-day-strong';
-        $html .= '<div class="relative flex flex-col gap-2"><p id="my-shift-title" class="font-display text-[2rem] leading-none font-semibold tracking-tight sm:text-[2.6rem]">' . h($s['branchName']) . '</p>';
-        $html .= '<p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-sidebar-foreground">' . icon(SHIFT_ICONS[$type] ?? 'sun', 'size-4 ' . $tone) . '<span class="font-semibold text-sidebar-accent-foreground">' . h(SHIFT_LABELS[$type] ?? $type) . '</span><span>' . $st['start']->format('H:i') . '–' . $st['end']->format('H:i') . '</span>';
+        $html .= $isLive
+            ? '<span class="status-pill is-live"><span class="live-dot" aria-hidden="true"></span>Идёт сейчас</span>'
+            : '<span class="status-pill">' . ($s['date'] === $today ? 'Сегодня' : 'Следующая смена') . '</span>';
+        $html .= '<div class="flex min-w-0 flex-col gap-0.5"><p id="my-shift-title" class="font-display text-lg leading-tight font-semibold tracking-tight">' . h($s['branchName']) . '</p>';
+        $html .= '<p class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">' . icon(SHIFT_ICONS[$type] ?? 'sun', 'size-3.5 ' . $tone) . '<span class="font-semibold text-foreground">' . h(SHIFT_LABELS[$type] ?? $type) . '</span><span class="tabular-nums">' . $st['start']->format('H:i') . '–' . $st['end']->format('H:i') . '</span>';
         if ($s['date'] !== $today) {
             $html .= '<span>· ' . h(format_day_short($s['date'])) . '</span>';
         }
         $html .= '</p></div>';
+
         if ($isLive) {
-            $html .= '<div class="relative flex max-w-lg flex-col gap-2"><div class="h-1.5 overflow-hidden rounded-full bg-sidebar-accent" role="progressbar" aria-label="Прошло смены" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' . $st['progress'] . '"><div class="h-full rounded-full bg-primary" style="width:' . $st['progress'] . '%"></div></div>';
-            $html .= '<div class="flex justify-between gap-2 text-xs text-sidebar-muted tabular-nums"><span>' . $st['start']->format('H:i') . '</span><span class="font-semibold text-sidebar-accent-foreground">осталось ' . h(duration_label($st['minutesLeft'])) . '</span><span>' . $st['end']->format('H:i') . '</span></div></div>';
+            $html .= '<div class="flex min-w-44 flex-1 flex-col gap-1.5"><div class="h-1.5 overflow-hidden rounded-full bg-foreground/10" role="progressbar" aria-label="Прошло смены" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' . $st['progress'] . '"><div class="h-full rounded-full bg-primary" style="width:' . $st['progress'] . '%"></div></div>';
+            $html .= '<p class="flex flex-wrap justify-between gap-x-4 text-xs text-muted-foreground"><span>осталось <span class="font-semibold text-foreground tabular-nums">' . h(duration_label($st['minutesLeft'])) . '</span></span>';
             $mates = array_values(array_filter($live, static fn ($r) => (int) $r['branchId'] === (int) $s['branchId'] && (int) $r['employeeId'] !== (int) $s['employeeId']));
             if ($mates) {
-                $html .= '<p class="relative text-sm text-sidebar-foreground">С вами на смене: <span class="font-semibold text-sidebar-accent-foreground">' . h(implode(', ', array_map(static fn ($m) => short_name((string) $m['employeeName']), $mates))) . '</span></p>';
+                $html .= '<span class="min-w-0 truncate">С вами: <span class="font-semibold text-foreground">' . h(implode(', ', array_map(static fn ($m) => short_name((string) $m['employeeName']), $mates))) . '</span></span>';
             }
+            $html .= '</p></div>';
         } else {
-            $html .= '<p class="relative text-sm text-sidebar-foreground">Начнётся через <span class="font-semibold text-sidebar-accent-foreground">' . h(duration_label($st['minutesToStart'])) . '</span></p>';
+            $html .= '<p class="min-w-0 flex-1 text-sm text-muted-foreground">Начнётся через <span class="font-semibold text-foreground">' . h(duration_label($st['minutesToStart'])) . '</span></p>';
         }
-        $html .= '<div class="relative flex flex-wrap items-center gap-x-5 gap-y-3">';
+
+        $html .= '<div class="flex flex-wrap items-center gap-x-4 gap-y-2">';
         if ($handoverPhase !== null && isset(HANDOVER_PHASES[$handoverPhase])) {
             $meta = HANDOVER_PHASES[$handoverPhase];
-            $html .= '<a href="' . h(url_to('/shift')) . '" class="' . btn_class('primary') . '">' . icon($meta['icon'], 'size-4') . h($meta['verb']) . '</a>';
+            $html .= '<a href="' . h(url_to('/shift')) . '" class="' . btn_class('primary', 'sm') . '">' . icon($meta['icon'], 'size-4') . h($meta['verb']) . '</a>';
         }
-        $html .= '<a href="' . h(url_to('/schedule', ['branch' => self::branchById((int) $s['branchId'])['slug'] ?? null])) . '" class="inline-flex w-fit items-center gap-1.5 text-sm font-semibold hover:text-brand">График смен ' . icon('arrow', 'size-4') . '</a>';
+        $html .= '<a href="' . h(url_to('/schedule', ['branch' => self::branchById((int) $s['branchId'])['slug'] ?? null])) . '" class="' . $link . '">График смен ' . icon('arrow', 'size-4') . '</a>';
         return $html . '</div></section>';
     }
 
@@ -361,7 +392,7 @@ trait PagesShifts
         $html = card_head('На смену', $n ? plural($n, 'дело', 'дела', 'дел') : 'пусто', '<a class="text-xs font-medium text-muted-foreground hover:text-foreground" href="' . h(url_to('/account') . '#prefs') . '">настроить</a>', 'bell');
         if (!$items) {
             $html .= '<p class="mt-3 flex items-center gap-2 text-sm text-muted-foreground">' . icon('check-circle', 'size-4') . 'Дел нет.</p>';
-            return card($html, 'p-4');
+            return card($html, 'p-5');
         }
         $html .= '<ul class="mt-3 flex flex-col divide-y divide-border">';
         foreach ($items as [$href, $ic, $label]) {
@@ -369,19 +400,19 @@ trait PagesShifts
             $hrefAttr = $href === '#' ? '' : ' href="' . h($href) . '"';
             $html .= '<li><' . $tag . $hrefAttr . ' class="group flex items-center gap-2.5 py-2 text-sm font-medium transition-colors' . ($href === '#' ? '' : ' hover:text-brand') . '"><span class="text-primary">' . icon($ic, 'size-3.5') . '</span><span class="min-w-0 flex-1 leading-snug">' . h($label) . '</span>' . ($href === '#' ? '' : icon('chevronright', 'size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5')) . '</' . $tag . '></li>';
         }
-        return card($html . '</ul>', 'p-4');
+        return card($html . '</ul>', 'p-5');
     }
 
-    private static function clubBranchRows(array $live, array $soon, bool $dark, array $user): string
+    private static function clubBranchRows(array $live, array $soon, array $user): string
     {
-        $muted = $dark ? 'text-sidebar-muted' : 'text-muted-foreground';
+        $muted = 'text-muted-foreground';
         $html = '';
         foreach (self::branches() as $b) {
             if (!can_view_schedule($user, $b['id'])) {
                 continue;
             }
             $people = array_values(array_filter($live, static fn ($r) => (int) $r['branchId'] === $b['id']));
-            $html .= '<div class="flex min-w-0 flex-col gap-2.5">';
+            $html .= '<div class="flex min-w-0 flex-col gap-2.5 py-4 first:pt-0 last:pb-0">';
             $html .= '<div class="flex items-baseline justify-between gap-2"><p class="font-semibold">' . h($b['name']) . '</p><span class="text-xs ' . $muted . '">' . ($people ? h(plural(count($people), 'человек', 'человека', 'человек')) : 'никого') . '</span></div>';
             if ($people) {
                 $html .= '<div class="flex flex-wrap gap-1.5">';
@@ -403,7 +434,8 @@ trait PagesShifts
     }
 
     /**
-     * Посадка и загрузка залов по данным Langame — инфографика в шапке «Моего дня».
+     * Посадка и загрузка залов по данным Langame — сворачиваемая панель «Аналитика сети» внизу «Моего дня».
+     * В свёрнутом виде видна только сводка по филиалам; раскрыта панель или нет — запоминается (data-persist, app.js).
      * @return array{html: string, reload: bool}
      */
     private static function clubLoadPanel(array $user): array
@@ -412,9 +444,16 @@ trait PagesShifts
         if (!$enabled) {
             return ['html' => '', 'reload' => false];
         }
+        $panel = static fn (string $note, string $right, string $body): string =>
+            '<section aria-labelledby="club-load"><details class="glass-card fold" data-persist="home-load">'
+            . '<summary class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-5"><span class="icon-tile size-8">' . icon('monitor', 'size-4') . '</span>'
+            . '<span class="flex min-w-0 flex-col"><span id="club-load" class="text-sm leading-snug font-semibold">Аналитика сети</span><span class="text-xs text-muted-foreground">' . h($note) . '</span></span>'
+            . '<span class="ml-auto flex flex-wrap items-center justify-end gap-2">' . $right . '</span>'
+            . icon('chevrondown', 'fold-chevron size-4 shrink-0 text-muted-foreground') . '</summary>' . $body . '</details></section>';
         $now = now_tyumen();
         $hourNow = (int) $now->format('G');
         $cards = '';
+        $chips = '';
         $totActive = 0;
         $totPcs = 0;
         $totSessions = 0;
@@ -441,54 +480,60 @@ trait PagesShifts
             $peak = $peakVal > 0 ? (int) array_search($peakVal, $hourly, true) : null;
             $level = $pct === null ? 'нет данных' : ($pct >= 80 ? 'почти полный' : ($pct >= 45 ? 'оживлённо' : ($pct > 0 ? 'спокойно' : 'пусто')));
 
-            $r = 34;
+            $r = 24;
             $len = 2 * M_PI * $r;
             $dash = $pct !== null ? round($len * $pct / 100, 1) : 0;
-            $gauge = '<svg viewBox="0 0 80 80" class="size-24 shrink-0 -rotate-90" role="img" aria-label="' . h($b['name'] . ': занято ' . ($pct ?? 0) . '%') . '">'
-                . '<circle cx="40" cy="40" r="' . $r . '" fill="none" stroke="currentColor" stroke-width="7" class="text-sidebar-foreground/10"/>'
-                . '<circle cx="40" cy="40" r="' . $r . '" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" class="text-brand" stroke-dasharray="' . $dash . ' ' . round($len, 1) . '"/></svg>';
+            $gauge = '<svg viewBox="0 0 60 60" class="size-14 -rotate-90" role="img" aria-label="' . h($b['name'] . ': занято ' . ($pct ?? 0) . '%') . '">'
+                . '<circle cx="30" cy="30" r="' . $r . '" fill="none" stroke-width="6" class="occ-ring-track"/>'
+                . '<circle cx="30" cy="30" r="' . $r . '" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" class="text-brand" stroke-dasharray="' . $dash . ' ' . round($len, 1) . '"/></svg>';
 
-            $c = '<article class="flex min-w-0 flex-col gap-4 rounded-lg border border-sidebar-foreground/10 bg-sidebar-foreground/[0.03] p-4">';
-            $c .= '<div class="flex items-center justify-between gap-2"><h3 class="font-display text-base font-semibold">' . h($b['name']) . '</h3><span class="text-xs text-sidebar-muted">' . h($level) . '</span></div>';
-            $c .= '<div class="flex items-center gap-4"><div class="relative">' . $gauge . '<span class="absolute inset-0 flex flex-col items-center justify-center"><span class="font-display text-xl leading-none font-semibold tabular-nums">' . ($pct !== null ? $pct . '%' : '—') . '</span><span class="mt-1 text-[10px] text-sidebar-muted tabular-nums">' . ($active !== null ? (int) $active . ($pcs ? ' / ' . $pcs : '') . ' ПК' : '') . '</span></span></div>';
-            $c .= '<dl class="grid min-w-0 flex-1 grid-cols-2 gap-x-3 gap-y-2 text-sm">';
+            // Компактная карточка зала: кольцо занятости, строка цифр и гистограмма по часам.
+            $c = '<article class="flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-card/60 p-3.5">';
+            $c .= '<div class="flex items-center gap-3"><div class="relative shrink-0">' . $gauge . '<span class="absolute inset-0 flex items-center justify-center font-display text-sm leading-none font-semibold tabular-nums">' . ($pct !== null ? $pct . '%' : '—') . '</span></div>';
+            $c .= '<div class="flex min-w-0 flex-1 flex-col gap-1.5"><div class="flex items-baseline justify-between gap-2"><h3 class="truncate font-display text-sm font-semibold">' . h($b['name']) . '</h3><span class="shrink-0 text-xs text-muted-foreground">' . h($level) . '</span></div>';
+            $c .= '<dl class="flex flex-wrap gap-x-3 gap-y-0.5 text-xs">';
             foreach ([
+                ['ПК', $active !== null ? (int) $active . ($pcs ? ' / ' . $pcs : '') : '—'],
                 ['Сессий', $live['sessionsToday'] !== null ? (string) (int) $live['sessionsToday'] : '—'],
                 ['Гостей', isset($live['guestsToday']) && $live['guestsToday'] !== null ? (string) (int) $live['guestsToday'] : '—'],
                 ['Средняя', isset($live['avgMinutes']) && $live['avgMinutes'] !== null ? self::minutesLabel((int) $live['avgMinutes']) : '—'],
                 ['По брони', (string) (int) ($live['bookedToday'] ?? 0)],
             ] as [$k, $v]) {
-                $c .= '<div class="flex min-w-0 flex-col"><dt class="text-[11px] text-sidebar-muted">' . $k . '</dt><dd class="truncate font-semibold tabular-nums">' . h($v) . '</dd></div>';
+                $c .= '<div class="flex items-baseline gap-1"><dt class="text-muted-foreground">' . $k . '</dt><dd class="font-semibold tabular-nums">' . h($v) . '</dd></div>';
             }
-            $c .= '</dl></div>';
+            $c .= '</dl></div></div>';
 
+            // Гистограмма: серая дорожка у каждого часа, столбец — у часов с посадкой, текущий час ярче.
             $maxH = max(1, $peakVal);
-            $c .= '<div class="flex flex-col gap-1.5"><div class="flex h-12 items-end gap-[2px]" role="img" aria-label="' . h('Загрузка по часам, ' . $b['name']) . '">';
+            $c .= '<div class="flex flex-col gap-1"><div class="occ-bars" role="img" aria-label="' . h('Загрузка по часам, ' . $b['name']) . '">';
             foreach ($hourly as $h => $v) {
-                $future = $h > $hourNow;
-                $tone = $h === $hourNow ? 'bg-brand' : ($future ? 'bg-sidebar-foreground/10' : 'bg-sidebar-foreground/35');
-                $height = $future ? 6 : max(6, (int) round($v / $maxH * 100));
-                $c .= '<span class="flex h-full min-w-0 flex-1 items-end" title="' . h(sprintf('%02d:00 — %d ПК', $h, $v)) . '"><span class="block w-full rounded-t-[2px] ' . $tone . '" style="height:' . $height . '%"></span></span>';
+                $state = $h === $hourNow ? 'now' : ($h > $hourNow ? 'future' : 'past');
+                $height = $state === 'future' || $v <= 0 ? 0 : max(10, (int) round($v / $maxH * 100));
+                $c .= '<span class="occ-bar" data-state="' . $state . '" title="' . h(sprintf('%02d:00 — %d ПК', $h, $v)) . '"><i style="--h:' . $height . '%"></i></span>';
             }
-            $c .= '</div><div class="flex justify-between text-[10px] text-sidebar-muted tabular-nums"><span>00</span><span>' . ($peak !== null ? 'пик ' . sprintf('%02d:00', $peak) . ' · ' . $peakVal . ' ПК' : 'сегодня') . '</span><span>23</span></div></div>';
+            $c .= '</div><div class="flex justify-between text-[10px] text-muted-foreground tabular-nums"><span>00</span><span>' . ($peak !== null ? 'пик ' . sprintf('%02d:00', $peak) . ' · ' . $peakVal . ' ПК' : 'сегодня') . '</span><span>23</span></div></div>';
             $cards .= $c . '</article>';
+            $chips .= '<span class="hidden items-center gap-1.5 rounded-full bg-foreground/5 px-2.5 py-1 text-xs sm:inline-flex"><span class="text-muted-foreground">' . h($b['name']) . '</span><span class="font-semibold tabular-nums">' . ($pct !== null ? $pct . '%' : '—') . '</span></span>';
             $shown++;
         }
         if ($cards === '' && $waiting === 0) {
             return ['html' => '', 'reload' => false];
         }
         if ($cards === '' && $waiting > 0) {
-            return ['html' => '<section class="cut hero-panel flex flex-col gap-3 p-5 sm:p-6" style="--cut:22px" aria-labelledby="club-load" data-langame-live>'
-                . '<p id="club-load" class="flex items-center gap-2 text-[11px] font-semibold tracking-[0.18em] text-sidebar-muted uppercase"><span class="cut-mark" aria-hidden="true"></span>Посадка в зале</p>'
-                . '<p class="text-sm text-sidebar-muted">Подгружаем занятость ПК из Langame — страница уже открыта, цифры появятся через несколько секунд.</p>'
-                . '</section>', 'reload' => true];
+            return ['html' => $panel(
+                'Посадка в залах · данные Langame',
+                '<span class="text-xs text-muted-foreground">Подгружаем занятость ПК…</span>',
+                '<p class="border-t border-border px-4 py-4 text-sm leading-relaxed text-muted-foreground sm:px-5">Подгружаем занятость ПК из Langame — цифры появятся здесь через несколько секунд, страница не перезагрузится.</p>',
+            ), 'reload' => true];
         }
         $totPct = $totPcs > 0 ? (int) round($totActive / $totPcs * 100) : null;
-        $html = '<section class="cut hero-panel flex flex-col gap-5 p-5 sm:p-6" style="--cut:22px" aria-labelledby="club-load">';
-        $html .= '<div class="flex flex-wrap items-center justify-between gap-3"><p id="club-load" class="flex items-center gap-2 text-[11px] font-semibold tracking-[0.18em] text-sidebar-muted uppercase"><span class="cut-mark" aria-hidden="true"></span>' . ($shown > 1 ? 'Посадка в залах' : 'Посадка в зале') . '</p>';
-        $html .= '<span class="inline-flex items-center gap-2 rounded-[5px] bg-sidebar-accent px-2 py-0.5 text-xs leading-5 font-semibold tabular-nums"><span class="live-dot" aria-hidden="true"></span>' . ($totPct !== null ? $totPct . '% · ' : '') . $totActive . ($totPcs ? ' из ' . $totPcs : '') . ' ПК · ' . h(plural($totSessions, 'сессия', 'сессии', 'сессий')) . ' сегодня</span></div>';
-        $html .= '<div class="grid gap-4' . ($shown > 1 ? ' md:grid-cols-2' : '') . '">' . $cards . '</div>';
-        return ['html' => $html . '</section>', 'reload' => false];
+        $total = '<span class="status-pill is-live tabular-nums"><span class="live-dot" aria-hidden="true"></span>' . ($totPct !== null ? $totPct . '% · ' : '') . $totActive . ($totPcs ? ' из ' . $totPcs : '') . ' ПК</span>';
+        $grid = '<div class="grid gap-3 border-t border-border p-4 sm:p-5' . ($shown > 1 ? ' md:grid-cols-2' : '') . ($shown > 2 ? ' xl:grid-cols-3' : '') . '">' . $cards . '</div>';
+        return ['html' => $panel(
+            ($shown > 1 ? 'Посадка в залах' : 'Посадка в зале') . ' · ' . plural($totSessions, 'сессия', 'сессии', 'сессий') . ' сегодня',
+            ($shown > 1 ? $chips : '') . $total,
+            $grid,
+        ), 'reload' => false];
     }
 
     private static function minutesLabel(int $m): string
@@ -708,24 +753,19 @@ trait PagesShifts
         return card($body, 'p-5');
     }
 
+    /** «Сейчас в клубах» — стеклянная карточка в рабочей сетке главной: кто на смене в каждом филиале и кто следующий. */
     private static function clubsNowCard(array $live, array $soon, array $user): string
     {
-        $html = card_head('Сейчас в клубах', '', '', 'building');
-        $html .= '<div class="mt-4 flex flex-col gap-5 divide-border">' . self::clubBranchRows($live, $soon, false, $user) . '</div>';
-        return card($html, 'p-5');
-    }
-
-    private static function clubsNowHero(array $live, array $soon, array $user): string
-    {
-        $html = '<section class="cut hero-panel relative flex flex-col gap-6 p-5 sm:p-7" style="--cut:26px" aria-labelledby="clubs-now">';
-        $html .= Course::settings()['newYear']
-            ? newyear_art('club')
-            : '<img src="' . h(asset('img/club/hall-wide-sm.webp')) . '" alt="" class="pointer-events-none absolute inset-y-0 right-0 hidden h-full w-1/2 object-cover opacity-25 [mask-image:linear-gradient(to_left,black,transparent)] sm:block" aria-hidden="true">';
-        $html .= '<div class="relative flex flex-wrap items-center justify-between gap-3"><p id="clubs-now" class="flex items-center gap-2 text-[11px] font-semibold tracking-[0.18em] text-sidebar-muted uppercase"><span class="cut-mark" aria-hidden="true"></span>Сейчас в клубах</p>';
-        $html .= '<span class="inline-flex items-center gap-2 rounded-[5px] bg-sidebar-accent px-2 py-0.5 text-xs leading-5 font-semibold"><span class="live-dot" aria-hidden="true"></span>' . h(plural(count($live), 'человек', 'человека', 'человек')) . ' на смене</span></div>';
-        $html .= '<div class="relative grid gap-6 sm:grid-cols-2">' . self::clubBranchRows($live, $soon, true, $user) . '</div>';
-        $html .= '<a href="' . h(url_to('/schedule')) . '" class="relative inline-flex w-fit items-center gap-1.5 text-sm font-semibold hover:text-brand">График смен ' . icon('arrow', 'size-4') . '</a>';
-        return $html . '</section>';
+        $rows = self::clubBranchRows($live, $soon, $user);
+        if ($rows === '') {
+            return '';
+        }
+        $html = '<div class="flex flex-wrap items-center justify-between gap-3"><h2 id="clubs-now" class="flex items-center gap-3 text-base leading-snug font-semibold"><span class="icon-tile size-8">' . icon('building', 'size-4') . '</span>Сейчас в клубах</h2>';
+        $html .= $live
+            ? '<span class="status-pill is-live"><span class="live-dot" aria-hidden="true"></span>' . h(plural(count($live), 'человек', 'человека', 'человек')) . ' на смене</span>'
+            : '<span class="status-pill">никого на смене</span>';
+        $html .= '</div><div class="mt-4 flex flex-col divide-y divide-border">' . $rows . '</div>';
+        return '<section class="glass-card p-5" aria-labelledby="clubs-now">' . $html . '</section>';
     }
 
     private static function latestNewsCard(array $user): string

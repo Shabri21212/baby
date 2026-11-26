@@ -1,6 +1,6 @@
 /*
- * Движение оболочки: аккордеон групп, компактная панель, подсказки, «перетекающие»
- * подложки вкладок, свечение под курсором и мягкий уход со страницы.
+ * Движение оболочки: аккордеон групп, раскрытие панели по наведению, подсказки, «перетекающие»
+ * подложки вкладок, свечение под курсором и смена разделов из левого меню.
  */
 (function () {
   "use strict";
@@ -8,7 +8,6 @@
   var root = document.documentElement;
   var reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
   var finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
-  var desktop = window.matchMedia("(min-width: 64rem)");
   var SPRING = "cubic-bezier(0.22, 1, 0.36, 1)";
 
   function store(kind, key, value) {
@@ -46,37 +45,29 @@
     store("localStorage", "gp-nav-groups", JSON.stringify(state));
   });
 
-  /* ---------- компактная панель ---------- */
+  /* ---------- панель: раскрывается по наведению, сворачивается при уходе курсора ---------- */
 
-  var railBtn = document.querySelector("[data-sb-rail]");
-  function syncRailBtn() {
-    if (!railBtn) return;
-    var rail = root.classList.contains("sb-rail");
-    var label = rail ? "Развернуть панель" : "Свернуть панель";
-    railBtn.setAttribute("aria-pressed", rail ? "true" : "false");
-    railBtn.setAttribute("aria-label", label);
-    railBtn.setAttribute("data-tip", label);
-  }
-  if (railBtn) {
-    syncRailBtn();
-    railBtn.addEventListener("click", function () {
-      var main = document.getElementById("main");
-      var before = main ? main.getBoundingClientRect().left : 0;
-      var rail = root.classList.toggle("sb-rail");
-      store("localStorage", "gp-sb-rail", rail ? "1" : "0");
-      syncRailBtn();
-      hideTip();
-      // FLIP: контент сдвигается одним transform, без пересчёта раскладки на каждом кадре.
-      if (main && !reduced.matches && main.animate) {
-        var dx = before - main.getBoundingClientRect().left;
-        if (dx) {
-          main.animate([{ transform: "translateX(" + dx + "px)" }, { transform: "none" }], {
-            duration: 480,
-            easing: SPRING,
-          });
-        }
-      }
+  // Ширину меняет CSS (:hover и .is-open). Класс нужен для короткой задержки перед сворачиванием —
+  // панель не дёргается, когда курсор на мгновение соскользнул с края.
+  var desk = document.querySelector(".sb--desk");
+  var closeTimer = 0;
+  if (desk) {
+    desk.addEventListener("mouseenter", function () {
+      clearTimeout(closeTimer);
+      desk.classList.add("is-open");
     });
+    desk.addEventListener("mouseleave", function () {
+      clearTimeout(closeTimer);
+      closeTimer = setTimeout(function () {
+        desk.classList.remove("is-open");
+      }, 140);
+    });
+    // После перехода по меню панель приходит раскрытой (см. sidebarBoot): если курсора над ней уже нет — сворачиваем.
+    if (desk.classList.contains("is-open")) {
+      setTimeout(function () {
+        if (!desk.matches(":hover")) desk.classList.remove("is-open");
+      }, 600);
+    }
   }
 
   /* ---------- подсказки ---------- */
@@ -89,9 +80,9 @@
   var tipTarget = null;
   var tipTimer = 0;
 
+  // Пунктам меню подсказка не нужна: при наведении панель сама раскрывается и показывает подписи.
   function tipAllowed(el) {
-    if (el.hasAttribute("data-tip-always")) return true;
-    return !!el.closest(".sb--desk") && root.classList.contains("sb-rail") && desktop.matches;
+    return el.hasAttribute("data-tip-always");
   }
   function showTip(el) {
     tipTarget = el;
@@ -207,7 +198,15 @@
     }).observe(list, { subtree: true, attributes: true, attributeFilter: ["aria-selected"] });
   });
 
-  /* ---------- уход со страницы ---------- */
+  /* ---------- смена раздела ---------- */
+
+  // Анимация появления страницы играет только после перехода из левого меню: флаг ставит клик по пункту,
+  // класс gp-enter — скрипт в <head>. Сохранение формы, вкладки и ссылки внутри страницы её не запускают.
+  if (root.classList.contains("gp-enter")) {
+    setTimeout(function () {
+      root.classList.remove("gp-enter");
+    }, 1200);
+  }
 
   function isPlainNav(e, a) {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return false;
@@ -229,10 +228,13 @@
         store("sessionStorage", "gp-pill", JSON.stringify({ x: r.left, y: r.top, w: r.width, h: r.height }));
       }
       sbLink.classList.add("is-pending");
+      // Курсор остаётся над панелью — следующая страница сразу рисует её раскрытой, без рывка.
+      store("sessionStorage", "gp-sb-open", "1");
     }
 
+    var menuLink = sbLink || a.closest(".sb-link, .dock-item");
     var group = a.closest("[data-pill-group], nav");
-    if (group && !sbLink) {
+    if (group && !sbLink && !a.closest("[data-live-nav]")) {
       var currentLink = group.querySelector('[aria-current="page"]');
       if (currentLink && currentLink !== a) {
         // Сначала переносим «активность», потом подложка едет к ней.
@@ -244,7 +246,10 @@
       }
     }
 
-    root.classList.add("is-leaving");
+    if (menuLink) {
+      store("sessionStorage", "gp-enter", "1");
+      root.classList.add("is-leaving");
+    }
   });
 
   window.addEventListener("pagehide", function () {

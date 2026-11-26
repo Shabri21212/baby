@@ -66,8 +66,6 @@
       if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dlg.close();
     }
   });
-  all("dialog[data-dialog-autoopen]").forEach(GP.openDialog);
-
   /* ---------- формы: подтверждение, защита от двойной отправки, автоотправка ---------- */
 
   // Перехват на погружении: отказ в подтверждении не должен запустить обработчики самой формы.
@@ -141,7 +139,7 @@
 
   /* ---------- уведомления ---------- */
 
-  all("[data-toast]").forEach(function (toast) {
+  function initToast(toast) {
     function close() {
       clearTimeout(timer);
       toast.classList.add("is-leaving");
@@ -156,7 +154,24 @@
       clearTimeout(timer);
     });
     on(one("[data-toast-close]", toast), "click", close);
-  });
+  }
+  GP.initToasts = function (root) {
+    all("[data-toast]", root).forEach(initToast);
+  };
+
+  // Уведомление о действии, после которого сервер увёл на другую страницу (см. live.js).
+  try {
+    var carried = sessionStorage.getItem("gp-flash");
+    if (carried) {
+      sessionStorage.removeItem("gp-flash");
+      if (!one("[data-toast]")) {
+        var flashHolder = document.createElement("div");
+        flashHolder.innerHTML = carried;
+        if (flashHolder.firstElementChild) document.body.appendChild(flashHolder.firstElementChild);
+      }
+    }
+  } catch (err) {}
+  GP.initToasts(document);
 
   /* ---------- боковое меню на телефоне ---------- */
 
@@ -265,9 +280,10 @@
 
   /* ---------- вкладки (главная, тарифы) ---------- */
 
-  all("[data-tabs]").forEach(function (box) {
+  function initTabs(box) {
     var btns = all("[data-tab]", box);
-    function show(key, focus) {
+    // animate — вкладку переключил сотрудник. При загрузке и тихом обновлении панель появляется без анимации.
+    function show(key, focus, animate) {
       var found = false;
       btns.forEach(function (b) {
         var onTab = b.getAttribute("data-tab") === key;
@@ -278,14 +294,17 @@
       });
       if (!found) return false;
       all("[data-tab-panel]", box).forEach(function (p) {
-        p.hidden = p.getAttribute("data-tab-panel") !== key;
+        var active = p.getAttribute("data-tab-panel") === key;
+        var entering = active && p.hidden && animate;
+        p.hidden = !active;
+        p.classList.toggle("tab-enter", !!entering);
       });
       return true;
     }
     btns.forEach(function (b, i) {
       on(b, "click", function () {
         var key = b.getAttribute("data-tab");
-        show(key);
+        show(key, false, true);
         if (history.replaceState) history.replaceState(null, "", "#" + key);
       });
       on(b, "keydown", function (e) {
@@ -293,16 +312,16 @@
         if (!step) return;
         e.preventDefault();
         var next = btns[(i + step + btns.length) % btns.length];
-        show(next.getAttribute("data-tab"), true);
+        show(next.getAttribute("data-tab"), true, true);
       });
     });
     var hash = (location.hash || "").slice(1);
     if (hash) show(hash);
-  });
+  }
 
   /* ---------- поиск по таблицам ---------- */
 
-  all("[data-table-filter]").forEach(function (input) {
+  function initFilter(input) {
     var id = input.getAttribute("data-table-filter");
     var table = document.getElementById(id);
     if (!table) return;
@@ -321,11 +340,11 @@
       });
       if (empty) empty.classList.toggle("hidden", needle === "" || shown > 0);
     });
-  });
+  }
 
   /* ---------- «показать ещё» ---------- */
 
-  all("[data-show-more]").forEach(function (list) {
+  function initShowMore(list) {
     var step = parseInt(list.getAttribute("data-show-more"), 10) || 8;
     var items = all("[data-more-item]", list);
     var btn = list.parentElement ? one("[data-show-more-btn]", list.parentElement) : null;
@@ -348,16 +367,41 @@
       paint();
     });
     paint();
-  });
+  }
+
+  /* ---------- сворачиваемые панели: состояние запоминается ---------- */
+
+  function initPersist(details) {
+    var key = "gp-open:" + details.getAttribute("data-persist");
+    try {
+      if (localStorage.getItem(key) === "1") details.open = true;
+    } catch (err) {}
+    on(details, "toggle", function () {
+      try {
+        localStorage.setItem(key, details.open ? "1" : "0");
+      } catch (err) {}
+    });
+  }
+
+  /* ---------- оживление разметки: при загрузке и для блоков, появившихся после тихого обновления ---------- */
+
+  function init(root) {
+    all("dialog[data-dialog-autoopen]", root).forEach(GP.openDialog);
+    all("[data-tabs]", root).forEach(initTabs);
+    all("[data-table-filter]", root).forEach(initFilter);
+    all("[data-show-more]", root).forEach(initShowMore);
+    all("details[data-persist]", root).forEach(initPersist);
+  }
+  init(document);
+  if (GP.live) GP.live.ready(init);
 
   /* ---------- часы по времени клуба ---------- */
 
-  var clocks = all("[data-clock]");
-  if (clocks.length && window.Intl) {
+  if (one("[data-clock]") && window.Intl) {
     var clockFormat = new Intl.DateTimeFormat("ru-RU", { timeZone: "Asia/Yekaterinburg", hour: "2-digit", minute: "2-digit" });
     setInterval(function () {
       var now = clockFormat.format(new Date());
-      clocks.forEach(function (c) {
+      all("[data-clock]").forEach(function (c) {
         if (c.textContent !== now) c.textContent = now;
       });
     }, 15000);
@@ -432,16 +476,20 @@
         }
         var synced = data && data.synced ? data.synced.length : 0;
         var live = data && data.live ? data.live.length : 0;
-        var shouldReload =
+        var changed =
           data &&
           data.ok &&
           (opts.reload ||
             (opts.reloadIfSynced && synced > 0) ||
             (opts.fromQueue && GP.langameReload && (synced > 0 || live > 0)));
-        if (shouldReload) {
-          setTimeout(function () {
-            location.reload();
-          }, 400);
+        // Свежие цифры подставляются в страницу без перезагрузки. Фоновые запросы страницу
+        // не перезагружают никогда — иначе она уходит в бесконечный цикл «обновил → перезагрузил».
+        if (changed && GP.live) {
+          GP.live.refresh().then(function (ok) {
+            if (!ok && opts.reload) location.reload();
+          });
+        } else if (changed && opts.reload) {
+          location.reload();
         }
         return data;
       })
@@ -461,14 +509,30 @@
 
   GP.refreshLangame = refreshLangame;
 
-  all("[data-langame-refresh]").forEach(function (btn) {
-    on(btn, "click", function () {
-      refreshLangame({
-        force: btn.getAttribute("data-force") === "1",
-        reload: true,
-        button: btn,
-      });
+  on(document, "click", function (e) {
+    var btn = e.target.closest("[data-langame-refresh]");
+    if (!btn || btn.disabled) return;
+    refreshLangame({
+      force: btn.getAttribute("data-force") === "1",
+      reload: true,
+      button: btn,
     });
+  });
+
+  // После тихого обновления: фильтры таблиц применяются к новым строкам, а очередь Langame,
+  // которую сервер поставил для этой страницы, уходит в фон — как при обычном открытии.
+  on(document, "gp:patched", function (e) {
+    var detail = e.detail || {};
+    all("[data-table-filter]").forEach(function (input) {
+      if (input.value) input.dispatchEvent(new Event("input"));
+    });
+    if (!detail.user || !detail.gp) return;
+    ["langameRefresh", "langameBranches", "langameReload", "langameForce"].forEach(function (key) {
+      GP[key] = detail.gp[key];
+    });
+    if (GP.langameRefresh && GP.langameRefresh.length) {
+      refreshLangame({ fromQueue: true, force: !!GP.langameForce });
+    }
   });
 
   document.addEventListener('click', function (event) {
