@@ -1,0 +1,158 @@
+<?php
+declare(strict_types=1);
+require dirname(__DIR__) . '/src/bootstrap.php';
+
+set_error_handler(static function (int $severity, string $message, string $file, int $line): never {
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
+$pdo = new PDO('sqlite::memory:', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+(new ReflectionProperty(Db::class, 'pdo'))->setValue(null, $pdo);
+foreach (array_keys(SCHEMA) as $table) {
+    $pdo->exec(Schema::sqliteCreate($table));
+}
+$checks = 0;
+function check(bool $ok, string $label): void
+{
+    global $checks;
+    if (!$ok) {
+        throw new RuntimeException($label);
+    }
+    $checks++;
+}
+Db::insert('branches', ['id' => 1, 'name' => 'Гондатти', 'slug' => 'gondatti', 'pcCount' => 40]);
+Db::insert('branches', ['id' => 2, 'name' => 'Киевская', 'slug' => 'kievskaya', 'pcCount' => 27]);
+$tariffs = DEFAULT_TARIFFS;
+array_pop($tariffs['branches']);
+$tariffs['branches'][0]['packages'][0]['prices'][0] = 999;
+Db::insert('portal_content', ['key' => 'tariffs', 'valueJson' => json_encode($tariffs)]);
+Db::insert('app_meta', ['k' => 'schema', 'v' => '8']);
+Schema::migrate($pdo, 'sqlite');
+BranchUpgrade::run($pdo);
+check((int) Db::value('SELECT COUNT(*) FROM branches') === 3, 'Idempotent third branch');
+check(Schema::storedVersion($pdo) === SCHEMA_VERSION, 'Migration version');
+$gondatti = Db::one('SELECT * FROM langame_settings WHERE "branchId" = 1');
+check($gondatti['baseUrl'] === 'https://463.langame.ru/public_api' && !(int) $gondatti['isEnabled'] && empty($gondatti['tokenEnc']), 'Gondatti URL without enabling missing token');
+Db::exec('UPDATE langame_settings SET "baseUrl" = ?, "tokenEnc" = ?, "tokenHint" = ?, "barPercentX10" = ?, "isEnabled" = ?, "lastSyncAt" = ? WHERE "branchId" = 1', ['https://999.langame.ru/public_api', 'test-encrypted-token', 'test', 75, 1, '2026-11-01T12:00:00+05:00']);
+Db::exec('UPDATE app_meta SET v = ? WHERE k = ?', ['9', 'schema']);
+$before = Db::one('SELECT * FROM langame_settings WHERE "branchId" = 1');
+Schema::migrate($pdo, 'sqlite');
+$after = Db::one('SELECT * FROM langame_settings WHERE "branchId" = 1');
+check($after['baseUrl'] === 'https://463.langame.ru/public_api', 'Existing Gondatti URL corrected');
+unset($before['baseUrl'], $before['updatedAt'], $after['baseUrl'], $after['updatedAt']);
+check($before === $after, 'Preserve token, percentage, enabled state and sync history');
+Db::exec('UPDATE langame_settings SET "baseUrl" = ? WHERE "branchId" = 1', ['https://998.langame.ru/public_api']);
+Schema::migrate($pdo, 'sqlite');
+check(Db::value('SELECT "baseUrl" FROM langame_settings WHERE "branchId" = 1') === 'https://998.langame.ru/public_api', 'Apply URL correction only once');
+check((int) Db::value('SELECT COUNT(*) FROM langame_settings WHERE "branchId" = 1') === 1, 'No duplicate Gondatti settings');
+Db::exec('UPDATE langame_settings SET "baseUrl" = ? WHERE "branchId" = 1', ['https://463.langame.ru/public_api']);
+$tariffs = json_decode(Db::value('SELECT "valueJson" FROM portal_content WHERE "key" = ?', ['tariffs']), true);
+check(count($tariffs['branches']) === 3 && $tariffs['branches'][0]['packages'][0]['prices'][0] === 999, 'Preserve existing prices');
+check($tariffs['branches'][2]['packages'][2]['prices'] === [600, 720, 900, 1200], 'Gazovikov prices');
+check(Db::value('SELECT "baseUrl" FROM langame_settings WHERE "branchId" = 3') === 'https://643.langame.ru/public_api', 'Gazovikov API URL');
+check((int) Db::value('SELECT COUNT(*) FROM knowledge_articles WHERE slug = ?', ['gazovikov-zony']) === 1, 'One hardware article');
+check(str_contains((string) Db::value('SELECT "contentHtml" FROM knowledge_articles WHERE slug = ?', ['gazovikov-zony']), '380 Hz'), 'Hardware specifications');
+
+check((int) Db::value('SELECT "dayStartHour" FROM branches WHERE slug = ?', ['gazovikov']) === 9 && (int) Db::value('SELECT "dayStartHour" FROM branches WHERE id = 1') === 8, 'Only Gazovikov starts at 09:00');
+check(Db::value('SELECT "excludeGoods" FROM langame_settings WHERE "branchId" = 3') === 'ТВ' && Db::value('SELECT "excludeGoods" FROM langame_settings WHERE "branchId" = 1') === null, 'Console rental excluded only at Gazovikov');
+branch_day_start(null, true);
+check(shift_hint('day', 3) === '09:00–21:00' && shift_hint('night', 3) === '21:00–09:00' && shift_hint('full', 3) === '09:00–09:00', 'Gazovikov shift hours');
+check(shift_hint('day', 1) === '08:00–20:00' && shift_hint('night') === '20:00–08:00', 'Default shift hours kept');
+$at = static fn (string $time): DateTimeImmutable => new DateTimeImmutable($time . '+05:00');
+check(shift_state('2026-11-11', 'day', $at('2026-11-11T08:30:00'), 3)['state'] === 'upcoming' && shift_state('2026-11-11', 'day', $at('2026-11-11T08:30:00'), 1)['state'] === 'live', 'Day shift starts by branch');
+check(shift_state('2026-11-11', 'night', $at('2026-11-11T20:30:00'), 3)['state'] === 'upcoming' && shift_state('2026-11-11', 'night', $at('2026-11-11T21:00:00'), 3)['state'] === 'live', 'Night shift starts at 21:00');
+check(shift_state('2026-11-11', 'night', $at('2026-11-12T08:59:00'), 3)['state'] === 'live' && shift_state('2026-11-11', 'night', $at('2026-11-12T09:00:00'), 3)['state'] === 'done', 'Night shift ends at 09:00');
+
+$employee = ['isOwner' => false, 'role' => 'admin', 'homeBranchId' => 1, 'employeeId' => 1, 'perms' => [], 'branchIds' => [1], 'shiftBranchIds' => []];
+check(can_view_schedule($employee, 1) && !can_view_schedule($employee, 2), 'Own branch only');
+check(!can_view_schedule(array_replace($employee, ['homeBranchId' => null, 'branchIds' => []]), 1), 'Fail closed without branch');
+check(can_view_schedule(array_replace($employee, ['perms' => ['schedule.view_all']]), 3), 'Grant all branches');
+check(!can(array_replace($employee, ['perms' => ['schedule.edit']]), 'schedule.edit', 2), 'Edit does not bypass visibility');
+check(can(array_replace($employee, ['perms' => ['schedule.edit']]), 'schedule.edit', 1), 'Home branch editor');
+check(!can(array_replace($employee, ['perms' => ['schedule.view_all']]), 'schedule.edit', 1), 'Read permission cannot edit');
+check(!can(array_replace($employee, ['perms' => ['schedule.edit', 'schedule.view_all']]), 'schedule.edit', 2), 'Editing scope preserved');
+
+$two = array_replace($employee, ['perms' => ['schedule.edit', 'guests.decide'], 'branchIds' => [1, 2]]);
+check(can($two, 'schedule.edit', 2) && can($two, 'guests.decide', 1) && !can($two, 'guests.decide', 3), 'Two branches granted, third closed');
+check(sees_branch($two, 2) && !sees_branch($two, 3) && user_branch_ids($two) === [1, 2], 'Visibility follows granted branches');
+$everywhere = array_replace($employee, ['perms' => ['guests.decide'], 'branchIds' => null]);
+check(can($everywhere, 'guests.decide', 3) && sees_branch($everywhere, 3) && perm_branches($everywhere, 'guests.decide') === null, 'All branches granted');
+$substitute = array_replace($employee, ['perms' => ['guests.decide'], 'shiftBranchIds' => [3]]);
+check(sees_branch($substitute, 3) && can_view_schedule($substitute, 3) && !can($substitute, 'guests.decide', 3), 'Shift in another branch shows it without widening permissions');
+check(sees_branch(['isOwner' => false, 'homeBranchId' => 2, 'perms' => []], 2) && !sees_branch(['isOwner' => false, 'homeBranchId' => 2, 'perms' => []], 1), 'Missing branch list falls back to home branch');
+check(branch_ids_from_row(['role' => 'admin', 'branchIds' => null], 2) === [2] && branch_ids_from_row(['role' => 'admin', 'branchIds' => null], null) === [], 'Unconfigured account follows employee card');
+check(branch_ids_from_row(['role' => 'admin', 'branchIds' => '*'], 2) === null && branch_ids_from_row(['role' => 'admin', 'branchIds' => '[1,3]'], 2) === [1, 3], 'Explicit all and explicit list');
+check(branch_ids_from_row(['role' => 'manager', 'branchIds' => null], 2) === null && branch_ids_from_row(['role' => 'owner', 'branchIds' => '[1]'], 2) === null, 'Manager and owner work with all branches');
+
+foreach ([['u-follow', 'admin', 1, 91, 1], ['u-other', 'admin', 2, 92, 1], ['u-manager', 'manager', 1, 93, 1], ['u-free', 'admin', null, 94, 2]] as [$uid, $role, $scope, $eid, $home]) {
+    Db::insert('user', ['id' => $uid, 'name' => $uid, 'email' => $uid . '@shifts.local', 'role' => $role, 'scopeBranchId' => $scope]);
+    Db::insert('employees', ['id' => $eid, 'name' => $uid, 'homeBranchId' => $home, 'userId' => $uid, 'isActive' => 0]);
+}
+BranchUpgrade::migrateV12($pdo);
+$stored = static fn (string $uid): mixed => Db::value('SELECT "branchIds" FROM "user" WHERE id = ?', [$uid]);
+check($stored('u-follow') === null && $stored('u-free') === null, 'Scope equal to card branch stays automatic');
+check($stored('u-other') === '[2]' && $stored('u-manager') === '[1]', 'Scope that differs from the role default becomes an explicit list');
+
+Db::insert('employee_grades', ['id' => 1, 'title' => 'Администратор', 'shiftRate' => 2200]);
+Db::insert('employees', ['id' => 1, 'name' => 'Иванов Александр Константинович', 'homeBranchId' => 1, 'gradeId' => 1]);
+Db::insert('employees', ['id' => 2, 'name' => 'Другой сотрудник', 'homeBranchId' => 2, 'gradeId' => 1]);
+Db::insert('employee_grade_history', ['employeeId' => 1, 'shiftRate' => 1800, 'changedAt' => '2026-10-01T00:00:00+05:00']);
+Db::insert('employee_grade_history', ['employeeId' => 1, 'shiftRate' => 2200, 'changedAt' => '2026-11-16T00:00:00+05:00']);
+foreach ([['2026-11-01', 'day'], ['2026-11-15', 'night'], ['2026-11-16', 'full'], ['2026-11-30', 'night']] as [$date, $type]) {
+    Db::insert('shifts', ['employeeId' => 1, 'branchId' => 1, 'date' => $date, 'shiftType' => $type]);
+}
+Db::insert('shifts', ['employeeId' => 2, 'branchId' => 2, 'date' => '2026-11-01', 'shiftType' => 'day']);
+Db::insert('employee_fines', ['employeeId' => 1, 'reason' => 'Первый период', 'amount' => 100, 'createdAt' => '2026-11-10T12:00:00+05:00']);
+Db::insert('employee_fines', ['employeeId' => 1, 'reason' => 'Второй период', 'amount' => 200, 'createdAt' => '2026-11-16T12:00:00+05:00']);
+Db::insert('employee_fines', ['employeeId' => 2, 'reason' => 'Чужой штраф', 'amount' => 9000, 'createdAt' => '2026-11-10T12:00:00+05:00']);
+Db::exec('UPDATE langame_settings SET "barPercentX10" = ?, "isEnabled" = ?, "lastSyncOk" = ?, "lastSyncAt" = ?, "syncedFrom" = ? WHERE "branchId" = 1', [100, 1, 1, '2026-11-16T12:00:00+05:00', '2026-11-01']);
+Db::insert('langame_shifts', ['branchId' => 1, 'extId' => 10, 'langameUserId' => 1]);
+Db::insert('langame_staff', ['branchId' => 1, 'langameUserId' => 1, 'employeeId' => 1, 'percentX10' => 50]);
+foreach ([['2026-11-15 23:59:59', 0], ['2026-11-16 00:00:00', 0], ['2026-11-16 10:00:00', 1], ['2026-11-17 10:00:00', 0]] as $i => [$at, $cancelled]) {
+    Db::insert('bar_sales', ['branchId' => 1, 'extId' => $i + 1, 'shiftExtId' => 10, 'saleAt' => $at, 'amountX100' => 100000, 'isCancelled' => $cancelled]);
+}
+$calc = static fn (string $at): array => Payroll::employee(1, '2026-11', new DateTimeImmutable($at . '+05:00'));
+$before = $calc('2026-11-01T07:59:59');
+check($before['periods'][1]['gross'] === 0 && $before['periods'][1]['planned'] === 2, 'Future shifts not earned');
+check($before['periods'][2]['bar'] === 0 && $before['periods'][2]['barByBranch'] === [], 'No commission before the first sale');
+check($calc('2026-11-15T23:59:59')['periods'][2]['bar'] === 50, 'Commission accrues from the 1st and is visible before the 16th');
+$start = $calc('2026-11-01T08:00:00');
+check($start['periods'][1]['gross'] === 1800 && $start['periods'][1]['units'] === 1, 'Accrue at exact day start using historical rate');
+check($calc('2026-11-15T19:59:59')['periods'][1]['gross'] === 1800, 'Night not started at 19:59');
+check($calc('2026-11-15T20:00:00')['periods'][1]['gross'] === 3600, 'Accrue at exact night start');
+$midnight = $calc('2026-11-16T00:00:00');
+check($midnight['periods'][1]['gross'] === 3600 && $midnight['periods'][2]['gross'] === 0, 'Overnight stays in first pay period');
+check($midnight['periods'][1]['bar'] === 0 && $midnight['periods'][2]['bar'] === 100, 'Whole-month commission paid with the second half, personal percent');
+$full = $calc('2026-11-16T12:00:00');
+check($full['periods'][2]['gross'] === 4400 && $full['periods'][2]['units'] === 2, 'Full day is two units at updated rate');
+check($full['periods'][2]['bar'] === 100, 'Cancelled and future sales excluded');
+check($full['periods'][2]['barByBranch'] === [['branchId' => 1, 'branchName' => 'Гондатти', 'revenue' => 2000, 'earned' => 100, 'pct' => 50]], 'Commission breakdown by branch');
+check($full['periods'][1]['fines'] === 100 && $full['periods'][2]['fines'] === 200, 'Fine period and employee isolation');
+check($full['periods'][1]['total'] === 3500 && $full['periods'][2]['total'] === 4300, 'Net calculation');
+check(count($full['periods'][1]['shifts']) === 2 && count($full['periods'][2]['shifts']) === 2, 'Other employee shifts not exposed');
+check(Payroll::employee(1, '2028-02', new DateTimeImmutable('2028-03-01+05:00'))['periods'][2]['to'] === '2028-02-29', 'Leap year boundary');
+check($calc('2026-11-30T20:00:00')['periods'][2]['gross'] === 6600, 'Last night belongs to month of start');
+check($full['warnings'] === [], 'Complete sales do not raise warning');
+Db::exec('UPDATE langame_settings SET "lastSyncOk" = 0 WHERE "branchId" = 1');
+check(count($calc('2026-11-16T12:00:00')['warnings']) === 1, 'Failed sync explicitly marked incomplete');
+$chip = shift_chip(['employeeName' => 'Иванов <Александр> Константинович', 'shiftType' => 'day']);
+check(str_contains($chip, 'Иванов &lt;Александр&gt; Константинович') && str_contains($chip, 'cal-chip-label'), 'Full name escaped with shift label');
+$fineCard = (new ReflectionMethod(Portal::class, 'salaryFinesCard'))->invoke(null, [['reason' => 'Штраф <проверка>', 'amount' => 200, 'createdAt' => '2026-11-16T12:00:00+05:00']], 200);
+check(str_contains($fineCard, 'Назначенные штрафы') && str_contains($fineCard, 'Штраф &lt;проверка&gt;'), 'Fine card with escaped reason');
+Db::insert('employee_fines', ['employeeId' => 1, 'reason' => 'На границе месяца UTC', 'amount' => 50, 'createdAt' => '2026-10-31T20:30:00Z']);
+check($calc('2026-11-01T08:00:00')['periods'][1]['fines'] === 50, 'Fine month determined in Tyumen timezone');
+
+check(BarRules::matches('ТВ 1 час', ['ТВ']) && BarRules::matches('тв ночь', ['ТВ']) && BarRules::matches('Аренда ТВ', ['тв']), 'Rule word matches as a separate word in any case');
+check(!BarRules::matches('Твикс', ['ТВ']) && !BarRules::matches('ТВ5 пакет', ['ТВ']) && !BarRules::matches('Батончик Nuts', ['ТВ']), 'Rule word inside another word is not a match');
+check(BarRules::words(' ТВ, PS5 ;тв,  ') === ['ТВ', 'PS5'], 'Rule words trimmed and de-duplicated');
+Db::exec('UPDATE langame_settings SET "lastSyncOk" = 1, "excludeGoods" = ? WHERE "branchId" = 1', ['ТВ']);
+Db::insert('langame_products', ['branchId' => 1, 'extId' => 77, 'name' => 'ТВ 1 час']);
+Db::insert('langame_products', ['branchId' => 1, 'extId' => 78, 'name' => 'Твикс']);
+Db::insert('bar_sales', ['branchId' => 1, 'extId' => 77, 'goodsId' => 77, 'shiftExtId' => 10, 'saleAt' => '2026-11-10 12:00:00', 'amountX100' => 100000]);
+Db::insert('bar_sales', ['branchId' => 1, 'extId' => 78, 'goodsId' => 78, 'shiftExtId' => 10, 'saleAt' => '2026-11-10 12:00:00', 'amountX100' => 100000]);
+check(BarRules::apply($pdo, 1) === 1, 'One catalogue item excluded');
+check((int) Db::value('SELECT "isExcluded" FROM bar_sales WHERE "extId" = 77') === 1 && (int) Db::value('SELECT "isExcluded" FROM bar_sales WHERE "extId" = 78') === 0, 'Console rental flagged, snack kept');
+check($calc('2026-11-16T12:00:00')['periods'][2]['bar'] === 150, 'Console rental does not earn bar commission');
+check((Langame::totalsByEmployee('2026-11-01', '2026-11-30', 1)[1]['revenue'] ?? 0) === 400000, 'Console rental is not bar revenue');
+Db::exec('UPDATE langame_settings SET "excludeGoods" = NULL WHERE "branchId" = 1');
+check(BarRules::apply($pdo, 1) === 0 && (int) Db::value('SELECT COUNT(*) FROM bar_sales WHERE "isExcluded" = 1') === 0, 'Clearing the rule restores the sales');
+fwrite(STDOUT, $checks . " CRM checks passed; isolated in-memory database.\n");

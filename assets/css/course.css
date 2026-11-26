@@ -1,0 +1,1456 @@
+/*
+ * Курс обучения.
+ * Урок повторяет референс (full-course-24-pages.html): слева содержание курса с прогрессом,
+ * по центру шаг с картой шагов и кнопками «Назад / Дальше», справа подсказки (coach-panel).
+ * Цвета и радиусы — только токены портала (--card, --border, --muted, --brand, --primary).
+ */
+
+/* ---------- хаб: шапка курса ---------- */
+.course-hero__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+  font-size: 0.875rem;
+}
+@media (max-width: 479.98px) {
+  .course-hero__stats {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+}
+.course-hero__bar {
+  width: 100%;
+  height: 0.375rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.12);
+}
+.course-hero__bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--brand);
+}
+
+/* ---------- галерея картинок в редакторе ---------- */
+.course-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+@media (min-width: 640px) {
+  .course-gallery {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.course-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+}
+
+/* ---------- сетка урока ---------- */
+.lesson-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "main" "coach" "nav";
+  gap: 1.25rem;
+  align-items: start;
+}
+.lesson-shell__nav {
+  grid-area: nav;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.lesson-shell__main {
+  grid-area: main;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1rem;
+}
+.lesson-shell__coach {
+  grid-area: coach;
+  min-width: 0;
+}
+@media (min-width: 1024px) {
+  .lesson-shell {
+    grid-template-columns: 18rem minmax(0, 1fr);
+    grid-template-areas: "nav main" "coach main";
+    grid-template-rows: auto 1fr;
+  }
+}
+@media (min-width: 1600px) {
+  .lesson-shell {
+    grid-template-columns: 19rem minmax(0, 1fr) 18rem;
+    grid-template-areas: "nav main coach";
+    grid-template-rows: auto;
+  }
+  .lesson-shell__coach {
+    position: sticky;
+    top: 1.5rem;
+  }
+}
+
+/* ---------- левая колонка: прогресс ---------- */
+.course-level {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.1rem 1.15rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+}
+.course-level__label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.course-level__value {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.course-level__value span {
+  font-size: 0.55em;
+  color: var(--muted-foreground);
+}
+.course-level__value--sm {
+  font-size: 1.35rem;
+}
+.course-level__bar {
+  height: 0.4rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--muted);
+}
+.course-level__bar > div {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--brand);
+  transition: width 0.4s ease;
+}
+.course-level__meta {
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+.course-level__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  align-self: flex-start;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.course-level__back:hover {
+  color: var(--primary-ink);
+}
+
+/* ---------- левая колонка: модули и главы ---------- */
+.course-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.course-module {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+}
+.course-module > summary {
+  display: flex;
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.8rem 0.9rem;
+}
+.course-module > summary::-webkit-details-marker {
+  display: none;
+}
+.course-module > summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.course-module__index {
+  display: flex;
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--muted);
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+.course-module.is-current .course-module__index {
+  background: color-mix(in oklab, var(--brand) 16%, transparent);
+  color: var(--primary-ink);
+}
+.course-module.is-done .course-module__index {
+  background: var(--foreground);
+  color: var(--background);
+}
+.course-module__copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.course-module__copy strong {
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.3;
+}
+.course-module__copy span {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.course-module__state {
+  flex: none;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.course-module.is-current .course-module__state {
+  color: var(--primary-ink);
+}
+.course-module__toggle {
+  flex: none;
+  color: var(--muted-foreground);
+  transition: transform 0.2s ease;
+}
+.course-module[open] .course-module__toggle {
+  transform: rotate(180deg);
+}
+.course-module__lessons {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 0.4rem 0.45rem;
+}
+.lesson-link {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.55rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  transition: background-color 0.15s, color 0.15s;
+}
+a.lesson-link:hover {
+  background: var(--muted);
+}
+.lesson-link__index {
+  flex: none;
+  width: 1.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+.lesson-link__title {
+  min-width: 0;
+  flex: 1;
+  font-weight: 550;
+  text-wrap: pretty;
+}
+.lesson-link__state {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.lesson-link.is-active {
+  background: color-mix(in oklab, var(--brand) 12%, transparent);
+}
+.lesson-link.is-active .lesson-link__index,
+.lesson-link.is-active .lesson-link__state {
+  color: var(--primary-ink);
+}
+.lesson-link.is-locked {
+  cursor: not-allowed;
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}
+
+/* ---------- плашки над уроком ---------- */
+.dashboard-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.dashboard-strip article {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+}
+.dashboard-strip .metric {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.dashboard-strip p {
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+@media (max-width: 479.98px) {
+  .dashboard-strip .metric {
+    font-size: 1.15rem;
+  }
+  .dashboard-strip article {
+    padding: 0.7rem 0.75rem;
+  }
+}
+
+/* ---------- шапка урока и карта шагов ---------- */
+.lesson-topline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+.lesson-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.step-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  background: color-mix(in oklab, var(--brand) 14%, transparent);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary-ink);
+  white-space: nowrap;
+}
+.step-map {
+  display: flex;
+  gap: 0.35rem;
+}
+.step-map li {
+  display: flex;
+  flex: 1;
+}
+.step-dot {
+  display: block;
+  width: 100%;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--border);
+  transition: background-color 0.2s, transform 0.2s;
+}
+a.step-dot:hover {
+  transform: scaleY(1.6);
+}
+.step-dot.is-done {
+  background: var(--foreground);
+}
+.step-dot.is-active {
+  background: var(--brand);
+}
+.step-dot.is-locked {
+  background: repeating-linear-gradient(135deg, var(--border) 0 6px, transparent 6px 9px);
+}
+.lesson-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-md);
+  padding: 0.55rem 0.8rem;
+  background: var(--muted);
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+/* ---------- карточка шага ---------- */
+.lesson-card {
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+}
+@media (min-width: 640px) {
+  .lesson-card {
+    padding: 2rem 2.25rem;
+  }
+}
+.lesson-card__title {
+  margin-bottom: 1rem;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+@media (min-width: 640px) {
+  .lesson-card__title {
+    font-size: 1.6rem;
+  }
+}
+
+/* ---------- текст шага ---------- */
+.course-prose {
+  max-width: 46rem;
+  font-size: 1rem;
+  line-height: 1.7;
+  overflow-wrap: break-word;
+}
+.course-prose > * + * {
+  margin-top: 0.9em;
+}
+.course-prose p {
+  text-wrap: pretty;
+}
+.course-prose h2 {
+  margin-top: 1.6em;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.course-prose h3 {
+  margin-top: 1.6em;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.course-prose h2:first-child,
+.course-prose h3:first-child {
+  margin-top: 0;
+}
+.course-prose a {
+  color: var(--primary-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.course-prose strong,
+.course-prose b {
+  font-weight: 650;
+}
+.course-prose ul:not([data-type]),
+.course-prose ol {
+  padding-left: 1.35em;
+}
+.course-prose ul:not([data-type]) {
+  list-style: disc;
+}
+.course-prose ol {
+  list-style: decimal;
+}
+.course-prose li + li {
+  margin-top: 0.3em;
+}
+.course-prose li::marker {
+  color: var(--brand);
+  font-weight: 600;
+}
+.course-prose blockquote {
+  border-left: 3px solid var(--brand);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: var(--muted);
+  padding: 0.85em 1.1em;
+}
+.course-prose img {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-block: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--muted);
+}
+/* Подпись под картинкой: в шаге она идёт абзацем <p><em>…</em></p> сразу после <img>. */
+.course-prose img + p:has(> em:only-child) {
+  margin-top: -0.5rem;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+
+/* ---------- карточки «Ситуация → ответ» ---------- */
+.course-prose ul[data-type="cases"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
+@media (min-width: 640px) {
+  .course-prose ul[data-type="cases"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.course-prose ul[data-type="cases"] > li {
+  margin: 0;
+}
+.case-card {
+  display: flex;
+  width: 100%;
+  min-height: 7.5rem;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--muted);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+.case-card:hover {
+  border-color: color-mix(in oklab, var(--brand) 45%, var(--border));
+}
+.case-card:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.case-card__label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.case-card__text {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.case-card__hint {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--primary-ink);
+}
+.case-card__answer {
+  display: none;
+}
+.case-card[aria-expanded="true"] {
+  border-color: var(--brand);
+  background: color-mix(in oklab, var(--brand) 8%, var(--card));
+}
+.case-card[aria-expanded="true"] .case-card__front {
+  display: none;
+}
+.case-card[aria-expanded="true"] .case-card__answer {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.case-card__front {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+/* ---------- мини-проверка (quiz) ---------- */
+.course-prose ul[data-type="quiz"] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.course-prose ul[data-type="quiz"] > li {
+  margin: 0;
+}
+.quiz-option {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+.quiz-option:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--foreground) 30%, var(--border));
+}
+.quiz-option:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.quiz-option__letter {
+  display: flex;
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+.quiz-option.is-wrong {
+  border-color: var(--destructive);
+  background: color-mix(in oklab, var(--destructive) 8%, var(--card));
+}
+.quiz-option.is-right {
+  border-color: var(--foreground);
+  background: color-mix(in oklab, var(--foreground) 6%, var(--card));
+}
+.quiz-option.is-right .quiz-option__letter {
+  background: var(--foreground);
+  color: var(--background);
+}
+.quiz-option:disabled {
+  cursor: default;
+}
+.quiz-feedback {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.quiz-feedback strong {
+  display: block;
+}
+.quiz-feedback.is-wrong strong {
+  color: var(--destructive);
+}
+
+/* Открытый вопрос: ответ скрыт до нажатия кнопки. */
+.answer-reveal {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block: 0.75rem;
+  padding: 0.625rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  color: var(--primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.answer-reveal::after {
+  content: "→";
+}
+.answer-reveal:hover {
+  border-color: var(--primary);
+}
+.answer-reveal:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.course-prose blockquote[data-variant="answer"] {
+  border-left-color: var(--primary);
+}
+.course-prose blockquote[data-variant="answer"]::before {
+  content: "Правильный ответ";
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+.course-prose blockquote[data-variant="answer"]:focus {
+  outline: none;
+}
+
+/* ---------- иллюстрация, загруженная руководителем ---------- */
+.course-media {
+  margin: 1.25rem 0 0;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--muted);
+}
+.course-media img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: calc(var(--radius-xl) - 4px);
+}
+.course-media figcaption {
+  padding: 0.5rem 0.35rem 0.25rem;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+/* ---------- «Назад / Дальше» ---------- */
+.lesson-actions {
+  position: sticky;
+  bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: color-mix(in oklab, var(--card) 92%, transparent);
+  box-shadow: 0 14px 32px -22px rgb(0 0 0 / 0.55);
+  backdrop-filter: blur(8px);
+}
+@media (min-width: 1024px) {
+  .lesson-actions {
+    bottom: 1rem;
+  }
+}
+.lesson-actions button[data-step-next][aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.course-hint {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+
+/* ---------- правая колонка подсказок ---------- */
+.coach-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+}
+.coach-panel section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 1.15rem;
+}
+.coach-panel section + section {
+  border-top: 1px solid var(--border);
+}
+.coach-panel h3 {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.coach-panel p {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+.coach-panel .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+/* ---------- хаб: список глав раздела ---------- */
+.course-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--border);
+}
+.course-rail__item {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  background: var(--card);
+}
+.course-rail__item.is-next {
+  background: color-mix(in oklab, var(--primary) 5%, var(--card));
+}
+.course-rail__item.is-next::before {
+  content: "";
+  flex: none;
+  width: 3px;
+  background: var(--brand);
+}
+.course-rail__item.is-hidden {
+  opacity: 0.55;
+}
+.course-rail__item.is-locked .course-rail__link {
+  cursor: not-allowed;
+}
+.course-rail__item.is-locked .course-rail__title {
+  color: var(--muted-foreground);
+}
+.course-rail__link {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  transition: background-color 0.15s;
+}
+a.course-rail__link:hover {
+  background: color-mix(in oklab, var(--foreground) 4%, transparent);
+}
+.course-rail__num {
+  flex: none;
+  width: 1.75rem;
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+.course-rail__body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.course-rail__title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+.course-rail__meta {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.course-rail__state {
+  flex: none;
+}
+.course-rail__admin {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 0.5rem;
+}
+@media (max-width: 639.98px) {
+  .course-rail__item {
+    flex-wrap: wrap;
+  }
+  .course-rail__admin {
+    order: 3;
+    width: 100%;
+    justify-content: flex-end;
+    border-top: 1px dashed var(--border);
+    padding: 0.25rem 0.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .course-level__bar > div,
+  .step-dot,
+  .course-module__toggle {
+    transition: none;
+  }
+}
+
+/* =========================================================================
+   Редактор курса (/exams/chapter/<id>/edit) — course-editor.js
+   ========================================================================= */
+.course-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+@media (min-width: 1024px) {
+  .course-editor {
+    grid-template-columns: 17rem minmax(0, 1fr);
+  }
+  .course-editor__side {
+    position: sticky;
+    top: 1.25rem;
+  }
+}
+.course-editor__side,
+.course-editor__main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.editor-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  color: var(--card-foreground);
+}
+.editor-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  list-style: none;
+  cursor: default;
+}
+summary.editor-panel__head {
+  cursor: pointer;
+}
+summary.editor-panel__head::-webkit-details-marker {
+  display: none;
+}
+.editor-panel__chevron {
+  margin-left: auto;
+  color: var(--muted-foreground);
+  transition: transform 0.15s ease;
+}
+details[open] > .editor-panel__head .editor-panel__chevron {
+  transform: rotate(180deg);
+}
+summary.editor-panel__head:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+  border-radius: var(--radius-lg);
+}
+
+.editor-steps {
+  display: flex;
+  max-height: 60vh;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  padding: 0 0.5rem 0.5rem;
+}
+.editor-steps__item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: calc(var(--radius-lg) - 4px);
+}
+.editor-steps__item:hover {
+  background: var(--muted);
+}
+.editor-steps__item.is-active {
+  background: color-mix(in oklab, var(--brand) 12%, var(--card));
+}
+.editor-steps__link {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  border-radius: inherit;
+}
+.editor-steps__link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.editor-steps__num {
+  display: inline-flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.editor-steps__item.is-active .editor-steps__num {
+  background: var(--brand);
+  color: var(--primary-foreground);
+}
+.editor-steps__item.is-active .editor-steps__title {
+  font-weight: 600;
+}
+.editor-steps__title {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.editor-steps__tools {
+  display: none;
+  flex: none;
+  padding-right: 0.25rem;
+}
+.editor-steps__item:hover .editor-steps__tools,
+.editor-steps__item:focus-within .editor-steps__tools,
+.editor-steps__item.is-active .editor-steps__tools {
+  display: inline-flex;
+}
+
+.editor-title {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  padding: 0.25rem 0 0.6rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 2.4vw, 1.75rem);
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--foreground);
+  outline: none;
+}
+.editor-title:focus {
+  border-bottom-color: var(--brand);
+}
+.editor-title::placeholder {
+  color: var(--muted-foreground);
+}
+
+/* --- поле текста с панелью --- */
+.course-rich {
+  display: flex;
+  flex-direction: column;
+  overflow: clip;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+.course-rich:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 20%, transparent);
+}
+.course-rich__toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  padding: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklab, var(--muted) 70%, var(--card));
+}
+@media (max-width: 1023px) {
+  .course-rich__toolbar {
+    top: 3.5rem;
+  }
+}
+.course-rich__group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+.course-rich__group + .course-rich__group:not(.ml-auto) {
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--border);
+}
+.course-rich__btn {
+  display: inline-flex;
+  height: 2rem;
+  min-width: 2rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0 0.45rem;
+  border-radius: 6px;
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  transition: background-color 0.12s ease;
+}
+.course-rich__btn:hover {
+  background: var(--card);
+}
+.course-rich__btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.course-rich__btn[aria-pressed="true"] {
+  background: var(--foreground);
+  color: var(--background);
+}
+.course-rich__btn:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.course-rich__btn.is-small svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+.course-rich__btn.has-label span {
+  white-space: nowrap;
+}
+/* Подписи кнопок вставки прячем, когда поле узкое (размер поля, а не экрана). */
+.course-rich {
+  container-type: inline-size;
+}
+@container (max-width: 720px) {
+  .course-rich__btn.has-label span {
+    display: none;
+  }
+}
+
+.course-rich__context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklab, var(--brand) 7%, var(--card));
+}
+.course-rich__context[hidden] {
+  display: none;
+}
+.course-rich__ctx-label {
+  margin-right: 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--primary-ink);
+}
+.course-rich__ctx-btn {
+  height: 1.75rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.course-rich__ctx-btn:hover {
+  border-color: var(--foreground);
+}
+.course-rich__ctx-btn.is-danger {
+  color: var(--primary-ink);
+}
+.course-rich__ctx-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.course-rich__area {
+  min-height: 24rem;
+  padding: 1.25rem 1.25rem 2rem;
+  outline: none;
+}
+@media (min-width: 640px) {
+  .course-rich__area {
+    padding: 1.5rem 2rem 2.5rem;
+  }
+}
+.course-rich__area.is-drop {
+  background: color-mix(in oklab, var(--brand) 6%, var(--card));
+  outline: 2px dashed var(--brand);
+  outline-offset: -8px;
+}
+.course-rich__area img {
+  cursor: pointer;
+}
+.course-rich__area img.is-selected {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+}
+.course-rich__uploading {
+  padding: 1.25rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+.course-rich__source {
+  min-height: 24rem;
+  width: 100%;
+  resize: vertical;
+  padding: 1.25rem;
+  background: var(--card);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  outline: none;
+}
+.course-rich__hint {
+  padding: 0.6rem 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+/* Интерактивные блоки в редакторе — в виде, понятном редактору (без JS сотрудника). */
+.course-rich__area ul[data-type="cases"] > li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--muted);
+}
+.course-rich__area ul[data-type="cases"] > li > strong::before,
+.course-rich__area ul[data-type="cases"] > li > span::before {
+  display: block;
+  margin-bottom: 0.15rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.course-rich__area ul[data-type="cases"] > li > strong::before {
+  content: "Ситуация";
+}
+.course-rich__area ul[data-type="cases"] > li > span {
+  display: block;
+  padding-top: 0.35rem;
+  border-top: 1px dashed var(--border);
+  font-size: 0.875rem;
+}
+.course-rich__area ul[data-type="cases"] > li > span::before {
+  content: "Ответ — откроется по нажатию";
+  color: var(--primary-ink);
+}
+.course-rich__area ul[data-type="quiz"] > li {
+  position: relative;
+  padding: 0.7rem 0.9rem 0.7rem 2.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+.course-rich__area ul[data-type="quiz"] > li::before {
+  content: "";
+  position: absolute;
+  top: 0.85rem;
+  left: 0.9rem;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--border);
+  border-radius: 999px;
+}
+.course-rich__area ul[data-type="quiz"] > li[data-checked="true"] {
+  border-color: color-mix(in oklab, var(--brand) 55%, var(--border));
+}
+.course-rich__area ul[data-type="quiz"] > li[data-checked="true"]::before {
+  border-color: var(--brand);
+  background: radial-gradient(circle, var(--brand) 0 45%, transparent 50%);
+}
+.course-rich__area ul[data-type="quiz"] > li[data-checked="true"]::after {
+  content: "Верный";
+  position: absolute;
+  top: 0.6rem;
+  right: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: var(--brand);
+  color: var(--primary-foreground);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.course-rich__area ul[data-type="quiz"] > li > blockquote {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+}
+.course-rich__area blockquote[data-variant="answer"] {
+  border-style: dashed;
+}
+
+/* Липкая полоса сохранения под редактором. */
+.editor-savebar {
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.6rem 0.6rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklab, var(--card) 92%, transparent);
+  backdrop-filter: blur(10px);
+}
+@media (max-width: 1023px) {
+  .editor-savebar {
+    bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  }
+}
+.editor-savebar__status {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+.editor-savebar__status[data-tone="dirty"] {
+  color: var(--primary-ink);
+  font-weight: 600;
+}
+
+/* Переключатель в настройках курса. */
+.settings-switch {
+  position: relative;
+  flex: none;
+  width: 2.5rem;
+  height: 1.4rem;
+  margin-top: 0.1rem;
+  border-radius: 999px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  appearance: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.settings-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(1.4rem - 6px);
+  height: calc(1.4rem - 6px);
+  border-radius: 999px;
+  background: var(--foreground);
+  transition: transform 0.15s ease;
+}
+.settings-switch:checked {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+.settings-switch:checked::after {
+  background: var(--primary-foreground);
+  transform: translateX(1.1rem);
+}
+.settings-switch:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ---------- «Экватор. Проверка знаний на практике» ---------- */
+.equator { display: flex; flex-direction: column; gap: 1.25rem; }
+.eq-eyebrow { font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted-foreground); }
+.eq-title { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; line-height: 1.25; text-wrap: balance; }
+.eq-lead { font-size: 0.9375rem; line-height: 1.6; color: var(--foreground); text-wrap: pretty; }
+.eq-note { font-size: 0.8125rem; line-height: 1.5; color: var(--muted-foreground); }
+
+.eq-intro { display: grid; gap: 2rem; }
+@media (min-width: 900px) { .eq-intro { grid-template-columns: 1.1fr 1fr; } }
+.eq-intro__main { display: flex; flex-direction: column; gap: 1rem; }
+.eq-intro__how { display: flex; flex-direction: column; gap: 1rem; }
+.eq-intro__how ul { display: flex; flex-direction: column; gap: 1rem; }
+.eq-intro__how li { display: flex; flex-direction: column; gap: 0.25rem; }
+.eq-intro__how strong { font-weight: 600; }
+.eq-intro__how span { font-size: 0.8125rem; line-height: 1.5; color: var(--muted-foreground); }
+
+.eq-facts, .eq-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.eq-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 1rem 0; border-block: 1px solid var(--border); }
+@media (min-width: 640px) { .eq-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.eq-facts dt, .eq-stats dt { font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; }
+.eq-facts dd, .eq-stats dd { font-size: 0.75rem; color: var(--muted-foreground); }
+
+.eq-progress { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem; }
+.eq-progress__label { font-size: 0.75rem; font-weight: 600; color: var(--muted-foreground); }
+.eq-progress__track { height: 6px; border-radius: 999px; background: var(--muted); overflow: hidden; }
+.eq-progress__fill { height: 100%; background: var(--brand); border-radius: inherit; transition: width 0.3s ease; }
+
+.eq-task { display: grid; gap: 1.5rem; }
+@media (min-width: 900px) { .eq-task { grid-template-columns: 13rem minmax(0, 1fr); gap: 2rem; } }
+.eq-task__side { display: flex; flex-direction: column; gap: 0.75rem; }
+.eq-task__part { font-family: var(--font-display); font-size: 1.125rem; font-weight: 600; line-height: 1.3; }
+.eq-task__hint { font-size: 0.875rem; line-height: 1.6; color: var(--muted-foreground); }
+.eq-task__count { font-size: 0.75rem; font-weight: 600; color: var(--muted-foreground); }
+.eq-task__body { display: flex; flex-direction: column; gap: 0.875rem; min-width: 0; }
+.eq-task__situation { font-size: 0.9375rem; line-height: 1.6; color: var(--muted-foreground); text-wrap: pretty; }
+.eq-task__question { font-family: var(--font-display); font-size: 1.125rem; font-weight: 600; line-height: 1.35; outline: none; }
+
+.eq-options { display: flex; flex-direction: column; gap: 0.5rem; }
+.eq-option {
+  display: flex; align-items: flex-start; gap: 1rem; width: 100%; padding: 0.875rem 1rem;
+  text-align: left; font-size: 0.9375rem; font-weight: 600; line-height: 1.5;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--muted); color: var(--foreground);
+  cursor: pointer; transition: border-color 0.15s, background-color 0.15s;
+}
+.eq-option:hover:not(:disabled) { border-color: var(--ring); }
+.eq-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.eq-option:disabled { cursor: default; }
+.eq-option__letter, .eq-option__mark { flex: none; width: 1rem; color: var(--muted-foreground); }
+.eq-option.is-right { border-color: color-mix(in oklab, var(--success) 55%, transparent); background: color-mix(in oklab, var(--success) 16%, var(--card)); }
+.eq-option.is-wrong { border-color: color-mix(in oklab, var(--destructive) 55%, transparent); background: color-mix(in oklab, var(--destructive) 12%, var(--card)); }
+.eq-option:disabled.is-wrong { opacity: 0.7; }
+
+.eq-seq-progress { display: flex; align-items: center; justify-content: space-between; gap: 1rem; font-size: 0.75rem; color: var(--muted-foreground); }
+.eq-dots { display: flex; gap: 0.375rem; }
+.eq-dot { width: 0.625rem; height: 0.625rem; border-radius: 999px; background: var(--border); }
+.eq-dot.is-done { background: var(--success); }
+
+.eq-slot { display: flex; flex-direction: column; align-items: flex-start; gap: 1rem; }
+.eq-slot:empty { display: none; }
+.eq-feedback { display: flex; flex-direction: column; gap: 0.375rem; padding: 0.25rem 0 0.25rem 1rem; border-left: 2px solid var(--success); }
+.eq-feedback.is-wrong { border-left-color: var(--destructive); }
+.eq-feedback__title { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; }
+.eq-feedback__icon { color: var(--success); font-weight: 700; }
+.eq-feedback.is-wrong .eq-feedback__icon { color: var(--destructive); }
+.eq-feedback__text { font-size: 0.9375rem; line-height: 1.55; color: var(--success); }
+.eq-feedback.is-wrong .eq-feedback__text { color: var(--destructive); }
+.eq-feedback__note { font-size: 0.8125rem; line-height: 1.5; color: var(--muted-foreground); }
+
+.eq-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  min-height: 2.5rem; padding: 0 1.125rem; border-radius: var(--radius-md);
+  font-size: 0.875rem; font-weight: 600; cursor: pointer; text-decoration: none;
+}
+.eq-btn--primary { background: var(--primary); color: var(--primary-foreground); border: 1px solid transparent; }
+.eq-btn--primary:hover { filter: brightness(1.08); }
+.eq-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.eq-result { display: flex; flex-direction: column; align-items: flex-start; gap: 1rem; }
+.eq-result .eq-stats { width: 100%; }
+.eq-rule { display: flex; flex-direction: column; gap: 0.25rem; padding-left: 1rem; border-left: 2px solid var(--border); }
+.eq-rule span { font-size: 0.875rem; color: var(--muted-foreground); }

@@ -1,0 +1,14 @@
+node_modules/
+storage/dev*.sqlite
+storage/dev*.sqlite-*
+storage/*.sqlite-journal
+storage/*.sqlite-wal
+storage/*.sqlite-shm
+storage/sessions/
+.env
+.env.*
+config.php
+.DS_Store
+assets/course_images/step-*
+storage/course_images/
+storage/*.lock

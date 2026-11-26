@@ -1,0 +1,135 @@
+/*
+ * Новогоднее оформление портала (включается в «Настройках курса»).
+ * Гирлянда — Portal::newYearGarland(), снег — assets/js/newyear.js, иллюстрации — assets/img/newyear/.
+ * Палитра — цвета бренда: красный неон, бирюзовый акцент и тёплый белый.
+ */
+:root {
+  --ny-cyan: #1fb5c8;
+  --ny-warm: #f4c96b;
+  --ny-wire: color-mix(in oklab, var(--foreground) 28%, transparent);
+}
+.dark {
+  --ny-cyan: #22c3d6;
+  --ny-warm: #ffe2a3;
+  --ny-wire: color-mix(in oklab, var(--foreground) 22%, transparent);
+}
+
+/* ---------- гирлянда ---------- */
+.ny-garland {
+  --ny-step: 64px;
+  --ny-h: 22px;
+  position: relative;
+  z-index: 2;
+  height: var(--ny-h);
+  margin-bottom: calc(-1 * var(--ny-h));
+  overflow: hidden;
+  pointer-events: none;
+}
+@media (min-width: 1024px) {
+  .ny-garland {
+    --ny-step: 92px;
+    --ny-h: 30px;
+  }
+}
+/* Провод — фестоны из повторяющейся дуги (маска), цвет берётся из темы. */
+.ny-garland__wire {
+  position: absolute;
+  inset: 0;
+  background: var(--ny-wire);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 90 30' preserveAspectRatio='none'%3E%3Cpath d='M0 1.5 Q45 27 90 1.5' fill='none' stroke='%23000' stroke-width='1.4'/%3E%3C/svg%3E") 0 0 / var(--ny-step) var(--ny-h) repeat-x;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 90 30' preserveAspectRatio='none'%3E%3Cpath d='M0 1.5 Q45 27 90 1.5' fill='none' stroke='%23000' stroke-width='1.4'/%3E%3C/svg%3E") 0 0 / var(--ny-step) var(--ny-h) repeat-x;
+}
+.ny-bulb {
+  --ny-color: var(--brand);
+  position: absolute;
+  /* Нижняя точка дуги: середина фестона, ~47% высоты. */
+  top: calc(var(--ny-h) * 0.47 - 1px);
+  left: calc(var(--i) * var(--ny-step) + var(--ny-step) / 2 - 3px);
+  width: 6px;
+  height: 9px;
+  border-radius: 45% 45% 50% 50% / 35% 35% 65% 65%;
+  background: var(--ny-color);
+  box-shadow: 0 0 6px 1px color-mix(in oklab, var(--ny-color) 55%, transparent);
+  animation: ny-twinkle 3.6s ease-in-out infinite;
+  /* --ny-t выставляет newyear.js по реальному времени, чтобы мерцание не начиналось заново на каждой странице. */
+  animation-delay: calc(var(--i) * -0.73s - var(--ny-t, 0s));
+}
+.ny-bulb::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: 1px;
+  width: 4px;
+  height: 3px;
+  border-radius: 1px;
+  background: var(--ny-wire);
+}
+.ny-bulb:nth-child(3n + 1) {
+  --ny-color: var(--ny-cyan);
+}
+.ny-bulb:nth-child(3n + 2) {
+  --ny-color: var(--ny-warm);
+}
+@media (min-width: 1024px) {
+  .ny-bulb {
+    width: 7px;
+    height: 11px;
+    left: calc(var(--i) * var(--ny-step) + var(--ny-step) / 2 - 3.5px);
+  }
+}
+@keyframes ny-twinkle {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+    box-shadow: none;
+  }
+}
+
+/* ---------- снег: далеко на фоне, под карточками ---------- */
+.ny-snow {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ---------- праздничные иллюстрации в тёмных «героях» ---------- */
+.ny-art {
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  z-index: -1;
+  display: none;
+  width: min(58%, 34rem);
+  height: 100%;
+  object-fit: cover;
+  object-position: right center;
+  /* Фон, а не картинка поверх текста: приглушаем и растворяем к центру. */
+  opacity: 0.42;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to left, #000 35%, transparent 95%);
+  mask-image: linear-gradient(to left, #000 35%, transparent 95%);
+}
+@media (min-width: 640px) {
+  .ny-art {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ny-bulb {
+    animation: none;
+  }
+}
+@media (forced-colors: active) {
+  .ny-garland,
+  .ny-snow,
+  .ny-art {
+    display: none;
+  }
+}
